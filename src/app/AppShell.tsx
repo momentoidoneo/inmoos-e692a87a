@@ -1,16 +1,21 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Search, Moon, Sun, Bell } from "lucide-react";
+import { Search, Moon, Sun, Bell, LogOut, Check, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffect, useMemo, useState } from "react";
 import { services } from "@/services";
 import type { Lead } from "@/modules/types";
 import {
-  Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "./AuthContext";
 
 const breadcrumbMap: Record<string, string> = {
   "": "Dashboard",

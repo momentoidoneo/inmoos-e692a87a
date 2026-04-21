@@ -3,8 +3,10 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/app/AuthContext";
 import { AppProvider } from "@/app/AppContext";
 import { AppShell } from "@/app/AppShell";
+import { ProtectedRoute } from "@/app/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
@@ -21,6 +23,7 @@ import Integrations from "./pages/Integrations";
 import SettingsPage from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -31,10 +34,26 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route element={<AppShell />}>
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppProvider>
+                    <AppShell />
+                  </AppProvider>
+                </ProtectedRoute>
+              }
+            >
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
               <Route path="/leads/:id" element={<LeadDetail />} />
@@ -53,7 +72,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AppProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
