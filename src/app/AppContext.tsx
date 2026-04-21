@@ -1,11 +1,17 @@
 /**
- * Lightweight tenant + user context.
- * Real wiring goes through Lovable Cloud auth; here we expose a stable mock user
- * so the app is fully navigable without configuring Cloud first.
+ * Tenant + user context for the app.
+ *
+ * After auth integration this proxies the AuthContext (real Supabase user + tenant),
+ * but exposes the same shape the rest of the app already consumes, so business
+ * pages don't need to know whether data comes from Cloud or mock.
+ *
+ * The `users` list (team members) still comes from the mock seed until the
+ * external backend exposes a /team endpoint.
  */
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { Tenant, User } from "@/modules/types";
-import { seedTenants, seedUsers } from "@/services/mock/seed";
+import { seedUsers } from "@/services/mock/seed";
+import { useAuth } from "./AuthContext";
 
 interface AppContextValue {
   tenant: Tenant;
@@ -16,9 +22,35 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const tenant = seedTenants[0];
-  const user = seedUsers.find((u) => u.role === "director")!;
-  return <AppContext.Provider value={{ tenant, user, users: seedUsers }}>{children}</AppContext.Provider>;
+  const { activeTenant, profile, user: supaUser, role } = useAuth();
+
+  const value = useMemo<AppContextValue | null>(() => {
+    if (!activeTenant || !supaUser) return null;
+
+    const tenant: Tenant = {
+      id: activeTenant.id,
+      name: activeTenant.name,
+      slug: activeTenant.slug,
+      logoUrl: activeTenant.logo_url ?? undefined,
+      primaryColor: activeTenant.primary_color ?? undefined,
+    };
+
+    const user: User = {
+      id: supaUser.id,
+      tenantId: activeTenant.id,
+      name: profile?.full_name ?? supaUser.email ?? "Usuario",
+      email: profile?.email ?? supaUser.email ?? "",
+      role: (role ?? "agente") as User["role"],
+      avatarUrl: profile?.avatar_url ?? undefined,
+      phone: profile?.phone ?? undefined,
+      active: true,
+    };
+
+    return { tenant, user, users: seedUsers };
+  }, [activeTenant, supaUser, profile, role]);
+
+  if (!value) return null;
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
