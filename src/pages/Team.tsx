@@ -50,7 +50,7 @@ import { useAuth, type AppRole } from "@/app/AuthContext";
 import { invitationsService, type TenantInvitation } from "@/services/invitations.service";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "@/hooks/use-toast";
-import { formatRelative } from "@/lib/format";
+import { fmtRelative } from "@/lib/format";
 
 interface Member {
   user_id: string;
@@ -169,7 +169,7 @@ export default function Team() {
             members.map((m) => (
               <div key={m.user_id} className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <UserAvatar name={m.full_name ?? m.email} src={m.avatar_url ?? undefined} size={40} />
+                  <UserAvatar name={m.full_name ?? m.email} size={40} />
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">
                       {m.full_name ?? m.email}
