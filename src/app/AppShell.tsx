@@ -39,8 +39,23 @@ export function AppShell() {
   const navigate = useNavigate();
   const [cmdOpen, setCmdOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const { activeTenant, tenants, switchTenant, signOut, profile, user } = useAuth();
 
-  useEffect(() => { services.leads.list().then(setLeads); }, []);
+  const initials = useMemo(() => {
+    const src = profile?.full_name ?? user?.email ?? "?";
+    return src
+      .split(/\s+/)
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }, [profile, user]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
