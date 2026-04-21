@@ -24,6 +24,7 @@ import SettingsPage from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
+import AcceptInvite from "./pages/AcceptInvite";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/invite/:token" element={<AcceptInvite />} />
             <Route
               path="/onboarding"
               element={
