@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,15 @@ import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { user, signIn, signUp, loading } = useAuth();
   const [busy, setBusy] = useState(false);
+  const redirectTo = params.get("redirect") || "/";
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (!loading && user) navigate("/", { replace: true });
-  }, [user, loading, navigate]);
+    if (!loading && user) navigate(redirectTo, { replace: true });
+  }, [user, loading, navigate, redirectTo]);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPwd, setLoginPwd] = useState("");
@@ -34,7 +36,7 @@ export default function Login() {
     if (error) {
       toast({ title: "No se pudo iniciar sesión", description: error.message, variant: "destructive" });
     } else {
-      navigate("/", { replace: true });
+      navigate(redirectTo, { replace: true });
     }
   };
 
