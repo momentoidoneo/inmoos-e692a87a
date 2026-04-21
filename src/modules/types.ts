@@ -12,7 +12,8 @@ export interface Tenant {
   name: string;
   slug: string;
   logoUrl?: string;
-  createdAt: string;
+  primaryColor?: string;
+  createdAt?: string;
 }
 
 export interface User {
