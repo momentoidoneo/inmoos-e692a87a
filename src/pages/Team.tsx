@@ -231,7 +231,7 @@ export default function Team() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <StatusPill status={inv.status} />
-                    <span>{formatRelative(inv.created_at)}</span>
+                    <span>{fmtRelative(inv.created_at)}</span>
                   </div>
                 </div>
               ))}
@@ -464,7 +464,7 @@ function InvitationRow({
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{invitation.email}</p>
           <p className="text-xs text-muted-foreground">
-            Caduca {formatRelative(invitation.expires_at)}
+            Caduca {fmtRelative(invitation.expires_at)}
           </p>
         </div>
       </div>
