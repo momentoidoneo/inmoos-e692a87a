@@ -57,6 +57,8 @@ export function AppShell() {
     navigate("/login", { replace: true });
   };
 
+  useEffect(() => { services.leads.list().then(setLeads); }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCmdOpen((o) => !o); }
@@ -104,6 +106,57 @@ export function AppShell() {
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Cambiar tema">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
+
+            {/* Tenant switcher */}
+            {tenants.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="hidden md:flex gap-2 max-w-[180px]">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{activeTenant?.name ?? "Inmobiliaria"}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Inmobiliarias</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {tenants.map((t) => (
+                    <DropdownMenuItem key={t.id} onClick={() => switchTenant(t.id)}>
+                      <span className="flex-1 truncate">{t.name}</span>
+                      {t.id === activeTenant?.id && <Check className="h-3.5 w-3.5 ml-2" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* User menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-full" aria-label="Cuenta">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-0.5">
+                    <p className="text-sm font-medium truncate">{profile?.full_name ?? user?.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/perfil")}>Perfil</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/configuracion")}>Configuración</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                  <LogOut className="h-3.5 w-3.5 mr-2" />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </header>
 
           <main className="flex-1 overflow-auto">
