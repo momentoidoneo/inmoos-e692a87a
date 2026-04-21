@@ -10,8 +10,11 @@ import {
 import { useApp } from "@/app/AppContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { roleLabel } from "@/lib/labels";
+import { usePermissions, type Permission } from "@/hooks/usePermissions";
 
-const groups = [
+type Item = { title: string; url: string; icon: typeof LayoutDashboard; permission?: Permission };
+
+const groups: { label: string; items: Item[] }[] = [
   {
     label: "Comercial",
     items: [
@@ -26,7 +29,7 @@ const groups = [
   {
     label: "Inteligencia",
     items: [
-      { title: "Automatizaciones", url: "/automatizaciones", icon: Zap },
+      { title: "Automatizaciones", url: "/automatizaciones", icon: Zap, permission: "automations.manage" },
       { title: "Documentos", url: "/documentos", icon: FileText },
       { title: "Conocimiento", url: "/conocimiento", icon: BookOpen },
     ],
@@ -34,9 +37,9 @@ const groups = [
   {
     label: "Administración",
     items: [
-      { title: "Equipo", url: "/equipo", icon: Users },
-      { title: "Integraciones", url: "/integraciones", icon: Plug },
-      { title: "Configuración", url: "/configuracion", icon: Settings },
+      { title: "Equipo", url: "/equipo", icon: Users, permission: "team.view" },
+      { title: "Integraciones", url: "/integraciones", icon: Plug, permission: "integrations.manage" },
+      { title: "Configuración", url: "/configuracion", icon: Settings, permission: "settings.manage" },
     ],
   },
 ];
@@ -45,7 +48,12 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { tenant, user } = useApp();
+  const { can } = usePermissions();
   const { pathname } = useLocation();
+
+  const visibleGroups = groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || can(i.permission)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <Sidebar collapsible="icon" className="border-r">
@@ -64,7 +72,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {groups.map((g) => (
+        {visibleGroups.map((g) => (
           <SidebarGroup key={g.label}>
             {!collapsed && <SidebarGroupLabel>{g.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
