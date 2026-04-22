@@ -4,23 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
-const ParamsSchema = z.object({
-  operation: z.enum(["compra", "alquiler", "alquiler_temporal"]),
-  propertyTypes: z.array(z.string()).default([]),
-  city: z.string().min(1),
-  zones: z.array(z.string()).default([]),
-  radiusKm: z.number().optional(),
-  priceMin: z.number().optional(),
-  priceMax: z.number().optional(),
-  surfaceMin: z.number().optional(),
-  surfaceMax: z.number().optional(),
-  roomsMin: z.number().optional(),
-  bathroomsMin: z.number().optional(),
-  listingType: z.enum(["particular", "agencia", "ambos"]).default("ambos"),
-  condition: z.enum(["nuevo", "segunda_mano", "obra_nueva"]).optional(),
-  features: z.array(z.string()).default([]),
-  adAge: z.enum(["24h", "7d", "30d", "any"]).default("any"),
-});
+// Params are validated by the worker; here we only require an object.
+const ParamsSchema = z.record(z.unknown());
 
 const BodySchema = z.object({
   params: ParamsSchema,
