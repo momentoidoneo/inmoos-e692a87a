@@ -1,8 +1,9 @@
 /**
  * Structured search form for the scraper module.
  * Builds a normalized `params` object and creates a job via scraper-create-job.
+ * Exposes current params/portals upward via `onChange` for "save search".
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,36 +40,39 @@ const EXTRAS = [
   { k: "amueblado", l: "Amueblado" },
 ];
 
-export function EnqueueScrapePanel() {
+interface Props {
+  onChange?: (state: { portals: string[]; params: Record<string, unknown> }) => void;
+  /** Optional initial state when re-running a saved search. */
+  initial?: { portals: string[]; params: Record<string, unknown> } | null;
+}
+
+export function EnqueueScrapePanel({ onChange, initial }: Props) {
   const { tenant } = useApp();
   const [submitting, setSubmitting] = useState(false);
 
-  const [portals, setPortals] = useState<Portal[]>(["idealista"]);
-  const [operation, setOperation] = useState("compra");
-  const [propertyType, setPropertyType] = useState("piso");
-  const [city, setCity] = useState("Barcelona");
-  const [zone, setZone] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
-  const [surfaceMin, setSurfaceMin] = useState("");
-  const [roomsMin, setRoomsMin] = useState("");
-  const [listingType, setListingType] = useState("any");
-  const [freshness, setFreshness] = useState("any");
-  const [extras, setExtras] = useState<Record<string, boolean>>({});
+  const [portals, setPortals] = useState<Portal[]>(
+    (initial?.portals as Portal[]) ?? ["idealista"],
+  );
+  const ip = initial?.params ?? {};
+  const [operation, setOperation] = useState((ip.operation as string) ?? "compra");
+  const [propertyType, setPropertyType] = useState((ip.property_type as string) ?? "piso");
+  const [city, setCity] = useState((ip.city as string) ?? "Barcelona");
+  const [zone, setZone] = useState((ip.zone as string) ?? "");
+  const [priceMin, setPriceMin] = useState(ip.price_min ? String(ip.price_min) : "");
+  const [priceMax, setPriceMax] = useState(ip.price_max ? String(ip.price_max) : "");
+  const [surfaceMin, setSurfaceMin] = useState(ip.surface_min ? String(ip.surface_min) : "");
+  const [roomsMin, setRoomsMin] = useState(ip.rooms_min ? String(ip.rooms_min) : "");
+  const [listingType, setListingType] = useState((ip.listing_type as string) ?? "any");
+  const [freshness, setFreshness] = useState((ip.freshness as string) ?? "any");
+  const [extras, setExtras] = useState<Record<string, boolean>>(() => {
+    const arr = (ip.extras as string[] | undefined) ?? [];
+    return Object.fromEntries(arr.map((k) => [k, true]));
+  });
 
   const togglePortal = (p: Portal, checked: boolean) =>
     setPortals((prev) => (checked ? [...new Set([...prev, p])] : prev.filter((x) => x !== p)));
 
-  const handleSubmit = async () => {
-    if (portals.length === 0) {
-      toast.error("Selecciona al menos un portal");
-      return;
-    }
-    if (!city.trim()) {
-      toast.error("Indica una ciudad");
-      return;
-    }
-
+  const buildParams = (): Record<string, unknown> => {
     const params: Record<string, unknown> = {
       operation,
       property_type: propertyType,
@@ -83,11 +87,29 @@ export function EnqueueScrapePanel() {
     if (freshness !== "any") params.freshness = freshness;
     const activeExtras = Object.entries(extras).filter(([, v]) => v).map(([k]) => k);
     if (activeExtras.length) params.extras = activeExtras;
+    return params;
+  };
+
+  // Keep parent informed.
+  useEffect(() => {
+    onChange?.({ portals, params: buildParams() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portals, operation, propertyType, city, zone, priceMin, priceMax, surfaceMin, roomsMin, listingType, freshness, extras]);
+
+  const handleSubmit = async () => {
+    if (portals.length === 0) {
+      toast.error("Selecciona al menos un portal");
+      return;
+    }
+    if (!city.trim()) {
+      toast.error("Indica una ciudad");
+      return;
+    }
 
     setSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke("scraper-create-job", {
-        body: { tenantId: tenant.id, portals, params },
+        body: { tenantId: tenant.id, portals, params: buildParams() },
       });
       if (error) throw new Error(error.message);
       const jobId = (data as { jobId?: string } | null)?.jobId;
