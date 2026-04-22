@@ -101,15 +101,19 @@ export function WorkerSetupGuide() {
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="default">
-              <a href="/docs/scraper-worker/guia-worker-scraping.pdf" download>
-                <Download className="mr-2 h-4 w-4" /> PDF
-              </a>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => downloadFile("/docs/scraper-worker/guia-worker-scraping.pdf", "guia-worker-scraping.pdf")}
+            >
+              <Download className="mr-2 h-4 w-4" /> PDF
             </Button>
-            <Button asChild size="sm" variant="secondary">
-              <a href="/docs/scraper-worker/guia-worker-scraping.docx" download>
-                <FileText className="mr-2 h-4 w-4" /> Word (.docx)
-              </a>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => downloadFile("/docs/scraper-worker/guia-worker-scraping.docx", "guia-worker-scraping.docx")}
+            >
+              <FileText className="mr-2 h-4 w-4" /> Word (.docx)
             </Button>
           </div>
           <a
