@@ -1,8 +1,13 @@
 // scraper-ingest-results — endpoint for external worker to push results securely.
 // Auth via X-Worker-Token shared secret. Uses service role to bypass RLS.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 import { z } from "https://esm.sh/zod@3.23.8";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-worker-token",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const ResultSchema = z.object({
   portal: z.string(),
