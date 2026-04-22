@@ -23,6 +23,7 @@ import {
   getWorkerConfig, upsertWorkerConfig, getRecentHeartbeats, callProvision,
   isWorkerOnline, type WorkerConfig, type WorkerHeartbeat,
 } from "@/services/worker.service";
+import { WorkerSetupGuide } from "@/components/WorkerSetupGuide";
 import {
   Loader2, RefreshCw, Rocket, RotateCw, Save, ShieldAlert, Wifi, WifiOff,
 } from "lucide-react";
@@ -152,9 +153,12 @@ export default function WorkerSettings() {
             Configuración del worker compartido que ejecuta búsquedas reales en portales inmobiliarios.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh}>
-          <RefreshCw className="mr-2 h-4 w-4" /> Refrescar
-        </Button>
+        <div className="flex items-center gap-2">
+          <WorkerSetupGuide />
+          <Button variant="outline" size="sm" onClick={refresh}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Refrescar
+          </Button>
+        </div>
       </header>
 
       {/* Estado actual */}
