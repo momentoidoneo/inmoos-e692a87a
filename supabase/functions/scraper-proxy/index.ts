@@ -9,7 +9,12 @@
  * - Injects `x-worker-token` server-side. Token never reaches the browser.
  * - Returns the worker's response (status + JSON) as-is.
  */
-import { corsHeaders } from "@supabase/supabase-js/cors";
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 
 const WORKER_URL = Deno.env.get("WORKER_URL");
 const WORKER_TOKEN = Deno.env.get("WORKER_TOKEN");
