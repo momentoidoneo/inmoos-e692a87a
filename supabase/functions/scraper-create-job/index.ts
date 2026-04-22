@@ -68,16 +68,25 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    const workerUrl = Deno.env.get("WORKER_WEBHOOK_URL");
-    if (workerUrl) {
-      // Real external worker mode
-      fetch(workerUrl, {
+    // Read worker config from DB (singleton). Falls back to mock-worker only if not configured.
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: cfg } = await adminClient
+      .from("worker_config")
+      .select("worker_url, worker_token, status")
+      .eq("singleton", true)
+      .maybeSingle();
+
+    if (cfg?.worker_url && cfg?.worker_token) {
+      fetch(cfg.worker_url.replace(/\/$/, "") + "/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Worker-Token": Deno.env.get("WORKER_TOKEN") ?? "" },
-        body: JSON.stringify({ jobId: job.id, params, portals }),
+        headers: { "Content-Type": "application/json", "X-Worker-Token": cfg.worker_token },
+        body: JSON.stringify({ jobId: job.id, tenantId, params, portals }),
       }).catch(() => {});
     } else {
-      // Mock-worker fallback (demo mode)
+      // Demo fallback
       const projectId = Deno.env.get("SUPABASE_URL")!.split("//")[1].split(".")[0];
       fetch(`https://${projectId}.supabase.co/functions/v1/scraper-mock-worker`, {
         method: "POST",

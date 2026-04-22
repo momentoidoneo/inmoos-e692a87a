@@ -26,6 +26,7 @@ import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import AcceptInvite from "./pages/AcceptInvite";
 import Opportunities from "./pages/Opportunities";
+import WorkerSettings from "./pages/WorkerSettings";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/equipo" element={<Team />} />
               <Route path="/integraciones" element={<Integrations />} />
               <Route path="/configuracion" element={<SettingsPage />} />
+              <Route path="/configuracion/worker" element={<WorkerSettings />} />
               <Route path="/perfil" element={<Profile />} />
             </Route>
             <Route path="*" element={<NotFound />} />

@@ -24,20 +24,22 @@ export type Permission =
   | "settings.manage"
   | "integrations.manage"
   | "leads.assign"
-  | "leads.delete";
+  | "leads.delete"
+  | "worker.manage";
 
 const matrix: Record<Permission, AppRole[]> = {
-  "team.view": ["admin", "director", "agente", "backoffice"],
-  "team.invite": ["admin", "director"],
-  "team.changeRole": ["admin"],
-  "team.remove": ["admin"],
-  "tenant.update": ["admin"],
-  "automations.manage": ["admin", "director"],
-  "knowledge.manage": ["admin", "director", "backoffice"],
-  "settings.manage": ["admin", "director"],
-  "integrations.manage": ["admin", "director"],
-  "leads.assign": ["admin", "director"],
-  "leads.delete": ["admin"],
+  "team.view": ["super_admin", "admin", "director", "agente", "backoffice"],
+  "team.invite": ["super_admin", "admin", "director"],
+  "team.changeRole": ["super_admin", "admin"],
+  "team.remove": ["super_admin", "admin"],
+  "tenant.update": ["super_admin", "admin"],
+  "automations.manage": ["super_admin", "admin", "director"],
+  "knowledge.manage": ["super_admin", "admin", "director", "backoffice"],
+  "settings.manage": ["super_admin", "admin", "director"],
+  "integrations.manage": ["super_admin", "admin", "director"],
+  "leads.assign": ["super_admin", "admin", "director"],
+  "leads.delete": ["super_admin", "admin"],
+  "worker.manage": ["super_admin"],
 };
 
 export function usePermissions() {
@@ -47,6 +49,12 @@ export function usePermissions() {
       if (!role) return false;
       return matrix[perm].includes(role);
     };
-    return { role, can, isAdmin: role === "admin", isDirector: role === "director" };
+    return {
+      role,
+      can,
+      isAdmin: role === "admin" || role === "super_admin",
+      isDirector: role === "director",
+      isSuperAdmin: role === "super_admin",
+    };
   }, [role]);
 }

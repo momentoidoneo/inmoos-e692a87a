@@ -5,7 +5,7 @@
 
 export type ID = string;
 
-export type AppRole = "admin" | "director" | "agente" | "backoffice";
+export type AppRole = "super_admin" | "admin" | "director" | "agente" | "backoffice";
 
 export interface Tenant {
   id: ID;
