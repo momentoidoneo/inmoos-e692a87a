@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.scraper-ingest-results]
 verify_jwt = false
+
+[functions.worker-heartbeat]
+verify_jwt = false
