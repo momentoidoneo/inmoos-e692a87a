@@ -1,23 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "@/app/AppContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EnqueueScrapePanel } from "@/components/scraper/EnqueueScrapePanel";
 import { WorkerStatusBadge } from "@/components/scraper/WorkerStatusBadge";
 import { ScraperTermsModal } from "@/components/scraper/ScraperTermsModal";
 import { ConvertResultDialog, type ConvertSource } from "@/components/scraper/ConvertResultDialog";
+import { SavedSearchesPanel } from "@/components/scraper/SavedSearchesPanel";
+import { ResultsMap, type MapPoint } from "@/components/scraper/ResultsMap";
+import { buildDedupeMap } from "@/lib/dedupe";
 import { fmtRelative } from "@/lib/format";
-import { ExternalLink, Home, RefreshCw, UserPlus } from "lucide-react";
+import { ExternalLink, Home, RefreshCw, UserPlus, Map as MapIcon, List } from "lucide-react";
 import { toast } from "sonner";
 
 interface JobRow {
@@ -48,6 +47,8 @@ interface ResultRow {
   description: string | null;
   images: string[] | null;
   url: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: string;
 }
 
@@ -69,6 +70,12 @@ export default function Scraper() {
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertMode, setConvertMode] = useState<"property" | "lead">("property");
   const [convertSource, setConvertSource] = useState<ConvertSource | null>(null);
+
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [formState, setFormState] = useState<{ portals: string[]; params: Record<string, unknown> }>({
+    portals: ["idealista"],
+    params: {},
+  });
 
   const loadJobs = async () => {
     const { data, error } = await supabase
@@ -92,11 +99,11 @@ export default function Scraper() {
     const { data, error } = await supabase
       .from("scraper_results")
       .select(
-        "id, job_id, portal, external_id, title, price, zone, city, rooms, bathrooms, surface_m2, property_type, operation, address, description, images, url, created_at"
+        "id, job_id, portal, external_id, title, price, zone, city, rooms, bathrooms, surface_m2, property_type, operation, address, description, images, url, lat, lng, created_at",
       )
       .eq("job_id", jobId)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(500);
     if (error) {
       toast.error("Error cargando resultados", { description: error.message });
       return;
@@ -104,30 +111,23 @@ export default function Scraper() {
     setResults(data ?? []);
   };
 
-  // Initial load + realtime subscription on jobs.
   useEffect(() => {
     loadJobs();
-
     const channel = supabase
       .channel(`scraper-jobs-${tenant.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "scraper_jobs", filter: `tenant_id=eq.${tenant.id}` },
-        () => loadJobs()
+        () => loadJobs(),
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant.id]);
 
-  // Reload results + subscribe when a job is selected.
   useEffect(() => {
     if (!selectedJobId) return;
     loadResults(selectedJobId);
-
     const channel = supabase
       .channel(`scraper-results-${selectedJobId}`)
       .on(
@@ -138,19 +138,14 @@ export default function Scraper() {
           table: "scraper_results",
           filter: `job_id=eq.${selectedJobId}`,
         },
-        () => loadResults(selectedJobId)
+        () => loadResults(selectedJobId),
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [selectedJobId]);
 
   const cancelJob = async (jobId: string) => {
-    const { error } = await supabase.functions.invoke("scraper-cancel-job", {
-      body: { jobId },
-    });
+    const { error } = await supabase.functions.invoke("scraper-cancel-job", { body: { jobId } });
     if (error) {
       toast.error("No se pudo cancelar", { description: error.message });
       return;
@@ -162,25 +157,31 @@ export default function Scraper() {
   const openConvert = (mode: "property" | "lead", r: ResultRow) => {
     setConvertMode(mode);
     setConvertSource({
-      id: r.id,
-      portal: r.portal,
-      external_id: r.external_id,
-      title: r.title,
-      price: r.price,
-      surface_m2: r.surface_m2,
-      rooms: r.rooms,
-      bathrooms: r.bathrooms,
-      property_type: r.property_type,
-      operation: r.operation,
-      address: r.address,
-      zone: r.zone,
-      city: r.city,
-      url: r.url,
-      description: r.description,
-      images: r.images,
+      id: r.id, portal: r.portal, external_id: r.external_id,
+      title: r.title, price: r.price, surface_m2: r.surface_m2,
+      rooms: r.rooms, bathrooms: r.bathrooms, property_type: r.property_type,
+      operation: r.operation, address: r.address, zone: r.zone, city: r.city,
+      url: r.url, description: r.description, images: r.images,
     });
     setConvertOpen(true);
   };
+
+  // Dedupe across portals
+  const { canonicalIds, duplicates } = useMemo(() => buildDedupeMap(results), [results]);
+  const visibleResults = showDuplicates
+    ? results
+    : results.filter((r) => canonicalIds.has(r.id));
+
+  const mapPoints: MapPoint[] = useMemo(
+    () =>
+      visibleResults
+        .filter((r) => typeof r.lat === "number" && typeof r.lng === "number")
+        .map((r) => ({
+          id: r.id, lat: r.lat as number, lng: r.lng as number,
+          title: r.title, price: r.price, url: r.url, portal: r.portal,
+        })),
+    [visibleResults],
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -203,8 +204,12 @@ export default function Scraper() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1">
-          <EnqueueScrapePanel />
+        <div className="lg:col-span-1 space-y-4">
+          <EnqueueScrapePanel onChange={setFormState} />
+          <SavedSearchesPanel
+            currentParams={formState.params}
+            currentPortals={formState.portals}
+          />
         </div>
 
         <Card className="lg:col-span-2">
@@ -242,28 +247,16 @@ export default function Scraper() {
                       onClick={() => setSelectedJobId(j.id)}
                     >
                       <TableCell>
-                        <Badge variant={statusVariant[j.status] ?? "secondary"}>
-                          {j.status}
-                        </Badge>
+                        <Badge variant={statusVariant[j.status] ?? "secondary"}>{j.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {j.portals.join(", ")}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {j.results_count}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {fmtRelative(j.created_at)}
-                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{j.portals.join(", ")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{j.results_count}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{fmtRelative(j.created_at)}</TableCell>
                       <TableCell className="text-right">
                         {(j.status === "queued" || j.status === "running") && (
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              cancelJob(j.id);
-                            }}
+                            variant="ghost" size="sm"
+                            onClick={(e) => { e.stopPropagation(); cancelJob(j.id); }}
                           >
                             Cancelar
                           </Button>
@@ -279,90 +272,93 @@ export default function Scraper() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Resultados</CardTitle>
-          <CardDescription>
-            {selectedJobId
-              ? `Listings del job ${selectedJobId.slice(0, 8)}…`
-              : "Selecciona un job para ver sus resultados"}
-          </CardDescription>
+        <CardHeader className="flex-row items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Resultados</CardTitle>
+            <CardDescription>
+              {selectedJobId
+                ? `Listings del job ${selectedJobId.slice(0, 8)}… · ${visibleResults.length} mostrados${duplicates ? ` · ${duplicates} duplicados ocultos` : ""}`
+                : "Selecciona un job para ver sus resultados"}
+            </CardDescription>
+          </div>
+          {duplicates > 0 && (
+            <Button
+              variant="ghost" size="sm"
+              onClick={() => setShowDuplicates((v) => !v)}
+            >
+              {showDuplicates ? "Ocultar duplicados" : `Mostrar duplicados (${duplicates})`}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {!selectedJobId ? (
             <div className="p-6 text-sm text-muted-foreground">Sin job seleccionado.</div>
-          ) : results.length === 0 ? (
-            <div className="p-6 text-sm text-muted-foreground">
-              Aún no hay resultados para este job.
-            </div>
+          ) : visibleResults.length === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">Aún no hay resultados para este job.</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Portal</TableHead>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Zona</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">m²</TableHead>
-                  <TableHead className="text-right">Hab.</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {results.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="capitalize text-xs">{r.portal}</TableCell>
-                    <TableCell className="max-w-[320px] truncate">
-                      {r.title ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {[r.zone, r.city].filter(Boolean).join(", ") || "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.price ? `${r.price.toLocaleString("es-ES")} €` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.surface_m2 ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.rooms ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {r.url && (
-                          <a
-                            href={r.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-primary hover:underline text-xs px-2"
-                            title="Ver anuncio"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          title="Convertir en inmueble"
-                          onClick={() => openConvert("property", r)}
-                        >
-                          <Home className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          title="Crear lead asociado"
-                          onClick={() => openConvert("lead", r)}
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Tabs defaultValue="table" className="w-full">
+              <div className="px-4 pt-2">
+                <TabsList>
+                  <TabsTrigger value="table"><List className="h-3.5 w-3.5 mr-1.5" /> Tabla</TabsTrigger>
+                  <TabsTrigger value="map"><MapIcon className="h-3.5 w-3.5 mr-1.5" /> Mapa</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="table" className="m-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Portal</TableHead>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Zona</TableHead>
+                      <TableHead className="text-right">Precio</TableHead>
+                      <TableHead className="text-right">m²</TableHead>
+                      <TableHead className="text-right">Hab.</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleResults.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="capitalize text-xs">{r.portal}</TableCell>
+                        <TableCell className="max-w-[320px] truncate">{r.title ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {[r.zone, r.city].filter(Boolean).join(", ") || "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.price ? `${r.price.toLocaleString("es-ES")} €` : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{r.surface_m2 ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.rooms ?? "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {r.url && (
+                              <a
+                                href={r.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center text-primary hover:underline text-xs px-2"
+                                title="Ver anuncio"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 px-2"
+                              title="Convertir en inmueble" onClick={() => openConvert("property", r)}>
+                              <Home className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2"
+                              title="Crear lead asociado" onClick={() => openConvert("lead", r)}>
+                              <UserPlus className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+              <TabsContent value="map" className="m-0 p-4">
+                <ResultsMap points={mapPoints} />
+              </TabsContent>
+            </Tabs>
           )}
         </CardContent>
       </Card>
