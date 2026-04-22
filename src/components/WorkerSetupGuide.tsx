@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
@@ -92,7 +92,7 @@ export function WorkerSetupGuide() {
                 </div>
               ) : (
                 <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:scroll-mt-4 prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content[k]}</ReactMarkdown>
+                  <ReactMarkdown>{content[k]}</ReactMarkdown>
                 </article>
               )}
             </TabsContent>
