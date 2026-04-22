@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, Calendar, Building2, FileText, BookOpen,
-  Zap, ListChecks, Activity, Users, Settings, Plug, Building, Search,
+  Zap, ListChecks, Activity, Users, Settings, Plug, Building, Search, Server,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -41,6 +41,7 @@ const groups: { label: string; items: Item[] }[] = [
       { title: "Equipo", url: "/equipo", icon: Users, permission: "team.view" },
       { title: "Integraciones", url: "/integraciones", icon: Plug, permission: "integrations.manage" },
       { title: "Configuración", url: "/configuracion", icon: Settings, permission: "settings.manage" },
+      { title: "Worker scraping", url: "/configuracion/worker", icon: Server, permission: "worker.manage" },
     ],
   },
 ];
