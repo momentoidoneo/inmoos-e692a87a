@@ -768,6 +768,108 @@ export type Database = {
           },
         ]
       }
+      worker_config: {
+        Row: {
+          coolify_api_token: string | null
+          coolify_api_url: string | null
+          coolify_app_uuid: string | null
+          created_at: string
+          id: string
+          last_heartbeat_at: string | null
+          last_version: string | null
+          notes: string | null
+          proxy_country: string | null
+          proxy_host: string | null
+          proxy_pass: string | null
+          proxy_provider: string | null
+          proxy_user: string | null
+          singleton: boolean
+          status: string
+          updated_at: string
+          updated_by: string | null
+          worker_token: string | null
+          worker_url: string | null
+        }
+        Insert: {
+          coolify_api_token?: string | null
+          coolify_api_url?: string | null
+          coolify_app_uuid?: string | null
+          created_at?: string
+          id?: string
+          last_heartbeat_at?: string | null
+          last_version?: string | null
+          notes?: string | null
+          proxy_country?: string | null
+          proxy_host?: string | null
+          proxy_pass?: string | null
+          proxy_provider?: string | null
+          proxy_user?: string | null
+          singleton?: boolean
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          worker_token?: string | null
+          worker_url?: string | null
+        }
+        Update: {
+          coolify_api_token?: string | null
+          coolify_api_url?: string | null
+          coolify_app_uuid?: string | null
+          created_at?: string
+          id?: string
+          last_heartbeat_at?: string | null
+          last_version?: string | null
+          notes?: string | null
+          proxy_country?: string | null
+          proxy_host?: string | null
+          proxy_pass?: string | null
+          proxy_provider?: string | null
+          proxy_user?: string | null
+          singleton?: boolean
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          worker_token?: string | null
+          worker_url?: string | null
+        }
+        Relationships: []
+      }
+      worker_heartbeats: {
+        Row: {
+          active_jobs: number | null
+          avg_latency_ms: number | null
+          id: string
+          jobs_last_24h: number | null
+          queue_depth: number | null
+          received_at: string
+          success_rate: number | null
+          version: string | null
+          worker_id: string
+        }
+        Insert: {
+          active_jobs?: number | null
+          avg_latency_ms?: number | null
+          id?: string
+          jobs_last_24h?: number | null
+          queue_depth?: number | null
+          received_at?: string
+          success_rate?: number | null
+          version?: string | null
+          worker_id: string
+        }
+        Update: {
+          active_jobs?: number | null
+          avg_latency_ms?: number | null
+          id?: string
+          jobs_last_24h?: number | null
+          queue_depth?: number | null
+          received_at?: string
+          success_rate?: number | null
+          version?: string | null
+          worker_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -786,6 +888,7 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "director" | "agente" | "backoffice" | "super_admin"
