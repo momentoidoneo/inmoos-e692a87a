@@ -139,15 +139,14 @@ export const opportunitiesService = {
     const tid = tenantId();
     if (!tid) return [];
     const { data } = await supabase.from("saved_searches").select("*").eq("tenant_id", tid).order("created_at", { ascending: false });
-    return (data as SavedSearch[]) ?? [];
+    return (data as unknown as SavedSearch[]) ?? [];
   },
 
   async saveSearch(name: string, params: ScraperParams, portals: Portal[]) {
     const tid = tenantId();
     const { data: u } = await supabase.auth.getUser();
-    const { error } = await supabase.from("saved_searches").insert({
-      tenant_id: tid, user_id: u.user!.id, name, params, portals,
-    });
+    const payload = { tenant_id: tid, user_id: u.user!.id, name, params: params as unknown as Record<string, unknown>, portals };
+    const { error } = await supabase.from("saved_searches").insert(payload as never);
     if (error) throw error;
   },
 
