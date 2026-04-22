@@ -16,6 +16,8 @@ import {
 import type { Lead, Visit } from "@/modules/types";
 import { fmtDateTime } from "@/lib/format";
 import { leadChannelLabel } from "@/lib/labels";
+import { WorkerStatusBadge } from "@/components/scraper/WorkerStatusBadge";
+import { EnqueueScrapePanel } from "@/components/scraper/EnqueueScrapePanel";
 
 export default function Dashboard() {
   const { user, users } = useApp();
@@ -43,9 +45,12 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Hola, {user.name.split(" ")[0]}</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Resumen ejecutivo de la operativa comercial.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Hola, {user.name.split(" ")[0]}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Resumen ejecutivo de la operativa comercial.</p>
+        </div>
+        <WorkerStatusBadge />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -191,6 +196,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <EnqueueScrapePanel />
     </div>
   );
 }
