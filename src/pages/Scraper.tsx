@@ -14,8 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { EnqueueScrapePanel } from "@/components/scraper/EnqueueScrapePanel";
 import { WorkerStatusBadge } from "@/components/scraper/WorkerStatusBadge";
+import { ScraperTermsModal } from "@/components/scraper/ScraperTermsModal";
+import { ConvertResultDialog, type ConvertSource } from "@/components/scraper/ConvertResultDialog";
 import { fmtRelative } from "@/lib/format";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, Home, RefreshCw, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface JobRow {
@@ -32,12 +34,19 @@ interface ResultRow {
   id: string;
   job_id: string;
   portal: string;
+  external_id: string;
   title: string | null;
   price: number | null;
   zone: string | null;
   city: string | null;
   rooms: number | null;
+  bathrooms: number | null;
   surface_m2: number | null;
+  property_type: string | null;
+  operation: string | null;
+  address: string | null;
+  description: string | null;
+  images: string[] | null;
   url: string | null;
   created_at: string;
 }
@@ -56,6 +65,10 @@ export default function Scraper() {
   const [results, setResults] = useState<ResultRow[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertMode, setConvertMode] = useState<"property" | "lead">("property");
+  const [convertSource, setConvertSource] = useState<ConvertSource | null>(null);
 
   const loadJobs = async () => {
     const { data, error } = await supabase
@@ -79,7 +92,7 @@ export default function Scraper() {
     const { data, error } = await supabase
       .from("scraper_results")
       .select(
-        "id, job_id, portal, title, price, zone, city, rooms, surface_m2, url, created_at"
+        "id, job_id, portal, external_id, title, price, zone, city, rooms, bathrooms, surface_m2, property_type, operation, address, description, images, url, created_at"
       )
       .eq("job_id", jobId)
       .order("created_at", { ascending: false })
@@ -146,8 +159,39 @@ export default function Scraper() {
     loadJobs();
   };
 
+  const openConvert = (mode: "property" | "lead", r: ResultRow) => {
+    setConvertMode(mode);
+    setConvertSource({
+      id: r.id,
+      portal: r.portal,
+      external_id: r.external_id,
+      title: r.title,
+      price: r.price,
+      surface_m2: r.surface_m2,
+      rooms: r.rooms,
+      bathrooms: r.bathrooms,
+      property_type: r.property_type,
+      operation: r.operation,
+      address: r.address,
+      zone: r.zone,
+      city: r.city,
+      url: r.url,
+      description: r.description,
+      images: r.images,
+    });
+    setConvertOpen(true);
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+      <ScraperTermsModal />
+      <ConvertResultDialog
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        mode={convertMode}
+        source={convertSource}
+      />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Scraper</h1>
@@ -260,7 +304,7 @@ export default function Scraper() {
                   <TableHead className="text-right">Precio</TableHead>
                   <TableHead className="text-right">m²</TableHead>
                   <TableHead className="text-right">Hab.</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -283,16 +327,37 @@ export default function Scraper() {
                       {r.rooms ?? "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {r.url && (
-                        <a
-                          href={r.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-primary hover:underline text-xs"
+                      <div className="flex items-center justify-end gap-1">
+                        {r.url && (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-primary hover:underline text-xs px-2"
+                            title="Ver anuncio"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          title="Convertir en inmueble"
+                          onClick={() => openConvert("property", r)}
                         >
-                          Ver <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
-                      )}
+                          <Home className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          title="Crear lead asociado"
+                          onClick={() => openConvert("lead", r)}
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
