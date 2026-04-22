@@ -131,6 +131,7 @@ export const urgencyLabel: Record<Urgency, string> = {
 };
 
 export const roleLabel: Record<AppRole, string> = {
+  super_admin: "Super-admin",
   admin: "Admin",
   director: "Director comercial",
   agente: "Agente comercial",
