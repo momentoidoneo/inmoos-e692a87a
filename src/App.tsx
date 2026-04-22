@@ -25,6 +25,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import AcceptInvite from "./pages/AcceptInvite";
+import Opportunities from "./pages/Opportunities";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/inmuebles" element={<Properties />} />
               <Route path="/inmuebles/:id" element={<PropertyDetail />} />
               <Route path="/tareas" element={<Tasks />} />
+              <Route path="/oportunidades" element={<Opportunities />} />
               <Route path="/actividad" element={<ActivityPage />} />
               <Route path="/automatizaciones" element={<Automations />} />
               <Route path="/documentos" element={<Documents />} />
