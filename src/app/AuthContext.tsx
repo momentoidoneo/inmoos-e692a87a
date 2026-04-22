@@ -22,7 +22,7 @@ import type { Session, User as SupaUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { httpConfig } from "@/services/http/client";
 
-export type AppRole = "admin" | "director" | "agente" | "backoffice";
+export type AppRole = "super_admin" | "admin" | "director" | "agente" | "backoffice";
 
 export interface Profile {
   id: string;
