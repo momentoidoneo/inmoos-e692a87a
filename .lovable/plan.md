@@ -1,147 +1,164 @@
 
-# InmoOS — Sistema operativo comercial para inmobiliarias
+# Iteración 4 — Persistencia real + Buscador de portales inmobiliarios
 
-SaaS multi-tenant vertical para inmobiliarias. Arquitectura híbrida: Lovable construye la capa de producto (UI, CRUDs, flujos, dashboards) y todo lo que requiere inteligencia (scoring, RAG, automatizaciones, parsing documental) se consume vía un **service layer tipado** preparado para enchufar a tu backend FastAPI + PostgreSQL + Redis + Qdrant + MinIO + OpenClaw.
-
-## Decisiones aprobadas
-
-- **Alcance v1:** los 10 módulos construidos con datos mock coherentes y estructura real.
-- **Backend:** híbrido — Lovable Cloud para auth, tenants, usuarios y roles (multi-tenant real desde día 1). Leads, inmuebles, visitas, documentos viven mockeados detrás del service layer apuntando al backend externo.
-- **Visual:** dual light/dark profesional. Neutros slate, acento azul sobrio, tipografía Inter, dark pulido (no invert).
+Dos bloques paralelos: (A) terminar lo que falta de la app subiendo módulos clave a persistencia real, y (B) montar un módulo nuevo "Oportunidades" que busca en portales inmobiliarios con la arquitectura correcta para no ser bloqueado.
 
 ---
 
-## Arquitectura del proyecto
+## Parte A — Lo que falta por consolidar
+
+### A1. Persistencia real en Cloud para módulos núcleo
+Migrar de mock → tablas Supabase con RLS por tenant:
+
+- **`leads`** + **`lead_notes`** + **`lead_activity`** (timeline real)
+- **`properties`**
+- **`visits`**
+- **`tasks`**
+
+Cada tabla con `tenant_id`, RLS usando `is_member_of_tenant()`, índices por `tenant_id + status`, y trigger `set_updated_at`. El service layer mantiene la misma interfaz: cambio `MockLeadsService` por `SupabaseLeadsService` en `services/index.ts`. Páginas existentes siguen funcionando sin tocar.
+
+Documentos, conocimiento, automatizaciones y AI **se quedan mock** apuntando a tu backend FastAPI futuro (es la decisión del plan híbrido original).
+
+### A2. Seed inicial por tenant
+Botón en Onboarding y en Configuración → "Cargar datos demo" que inserta el seed coherente actual (60 leads, 25 inmuebles, etc.) ya en la BD del tenant. Útil para presentaciones comerciales sin contaminar tenants reales.
+
+### A3. Perfil editable real
+Página `/perfil` lee/escribe `profiles` (nombre, teléfono, avatar). Cambio de contraseña vía Supabase Auth.
+
+### A4. Configuración de inmobiliaria real
+`/configuracion` edita `tenants` (nombre, logo, color primario) — solo admin. El color primario alimenta una CSS var para branding suave por tenant.
+
+---
+
+## Parte B — Módulo "Oportunidades" (búsqueda en portales)
+
+### B1. Por qué esto NO puede vivir en Lovable ni en Edge Functions
+
+Idealista, Fotocasa, Habitaclia y similares tienen defensas anti-bot serias:
+- **DataDome / PerimeterX / Cloudflare** con fingerprinting de TLS, canvas, WebGL, fuentes y comportamiento.
+- **Bloqueo por IP de datacenter** (AWS, GCP, Supabase Edge → bloqueados en minutos).
+- **Rate limiting agresivo** y CAPTCHAs.
+- **Detección de headless** (navigator.webdriver, plugins, user-agent, timing de eventos).
+
+Edge Functions de Supabase (Deno serverless, IPs de datacenter, sin navegador real) **serán bloqueadas en la primera petición**. Lovable solo construye frontend; no puede ejecutar navegadores.
+
+**Además existe riesgo legal**: Idealista tiene jurisprudencia favorable contra scraping (caso Idealista vs Rentola). Hay que tratarlo como riesgo conocido del cliente, no como funcionalidad oficial.
+
+### B2. Arquitectura correcta — Worker externo
 
 ```
-src/
-├── app/                      # Layouts y shell
-│   ├── AppShell.tsx          # Sidebar + topbar + breadcrumbs + buscador global
-│   └── AuthLayout.tsx
-├── pages/                    # Una por ruta
-├── modules/                  # Lógica de dominio por módulo
-│   ├── leads/                # componentes, hooks, tipos, mock data
-│   ├── properties/
-│   ├── visits/
-│   ├── tasks/
-│   ├── documents/
-│   ├── knowledge/
-│   ├── automations/
-│   ├── dashboard/
-│   └── settings/
-├── services/                 # CAPA DE SERVICIOS (adapters)
-│   ├── http/client.ts        # fetch tipado, interceptores, tenant header
-│   ├── leads.service.ts      # interfaz + impl mock + impl REST
-│   ├── ai.service.ts         # scoring, resumen, next-action (mock → backend)
-│   ├── documents.service.ts  # upload + parsing (mock → MinIO/RAG)
-│   ├── knowledge.service.ts  # artículos + búsqueda semántica (mock → Qdrant)
-│   └── automations.service.ts
-├── lib/                      # utils, formatters, validation (zod)
-├── components/ui/            # shadcn
-└── components/shared/        # DataTable, FilterBar, StatusBadge, Timeline, EmptyState…
+┌──────────────┐    1. POST /search        ┌──────────────────┐
+│  InmoOS UI   │ ────────────────────────► │  Edge Function   │
+│ (Lovable)    │ ◄───── job_id ──────────── │  scraper-jobs    │
+└──────────────┘                            └────────┬─────────┘
+       ▲                                             │ enqueue
+       │                                             ▼
+       │                                    ┌──────────────────┐
+       │ 3. Realtime subscribe              │  scraper_jobs    │
+       │ (postgres_changes)                 │  table (Cloud)   │
+       │                                    └────────┬─────────┘
+       │                                             │ poll
+       │                                             ▼
+       │                                    ┌──────────────────────┐
+       │ 4. Resultados aparecen             │  Worker externo      │
+       └─────────────────────────────────── │  (TU servidor):      │
+                                            │  Playwright stealth  │
+                                            │  + proxies residenc. │
+                                            └──────────────────────┘
 ```
 
-**Patrón clave:** cada servicio expone una interfaz; hay implementación mock y un stub REST listo. Cambiar de mock a backend real = cambiar el binding en un único `services/index.ts`. Cero lógica de IA en componentes.
+**Worker externo (lo monta tu equipo, fuera de Lovable):**
+- **Playwright + `playwright-extra` + `puppeteer-extra-plugin-stealth`** (parchea webdriver, plugins, languages, WebGL).
+- **Proxies residenciales rotatorios** (Bright Data, Smartproxy, Oxylabs, IPRoyal) — sin esto, te bloquean en horas.
+- **Navegación humanizada**: viewport real, movimientos de ratón con curvas Bézier, scroll con easing, delays aleatorios 800-3500 ms entre acciones, aceptar cookies, simular foco/blur.
+- **Fingerprint rotativo** por job (UA + plataforma + zona horaria + idioma coherentes).
+- **Cola Redis/BullMQ** con concurrencia baja (2-4 jobs) y backoff exponencial ante 403/429.
+- **Persistencia de sesión** entre jobs del mismo proxy para parecer un usuario que vuelve.
+- **Caché de resultados** 6-24 h por hash de query (reduce peticiones y coste).
+- **Parsing por adapter** (un adapter por portal: `IdealistaAdapter`, `FotocasaAdapter`, `HabitacliaAdapter`) que extrae cards de resultado del HTML/DOM.
+
+**Comunicación worker ↔ Cloud:**
+- El worker hace `poll` o `LISTEN/NOTIFY` sobre la tabla `scraper_jobs` en Postgres (la BD de Lovable Cloud es accesible vía connection string).
+- Inserta resultados en `scraper_results` ligados al `job_id`.
+- La UI escucha por **Supabase Realtime** sobre esa tabla y los resultados aparecen en streaming.
+
+### B3. Lo que entrega esta iteración (lado Lovable)
+
+Toda la infraestructura del lado UI/Cloud para que cuando tengas el worker desplegado, funcione end-to-end. Mientras tanto, hay un **simulador de worker** dentro de la propia Edge Function que devuelve resultados realistas mock (10-20 anuncios coherentes con los filtros) para poder demostrar el flujo a clientes.
+
+**Tablas nuevas (Cloud):**
+- `scraper_jobs`: `id, tenant_id, user_id, params (jsonb), status (queued|running|done|error|partial), portals (text[]), progress, results_count, error, created_at, started_at, finished_at`
+- `scraper_results`: `id, job_id, tenant_id, portal, external_id, url, title, price, surface_m2, rooms, bathrooms, property_type, operation, address, zone, city, lat, lng, listing_type (particular|agencia), images (text[]), description, published_at, raw (jsonb), created_at`. Único `(job_id, portal, external_id)`.
+- `saved_searches`: búsquedas guardadas reutilizables por usuario.
+- RLS por tenant en todas.
+- Realtime habilitado en `scraper_jobs` y `scraper_results`.
+
+**Edge Functions:**
+- `scraper-create-job`: valida con Zod, crea registro `queued` en `scraper_jobs`. Si `WORKER_WEBHOOK_URL` está configurada, hace POST al worker para despertarlo.
+- `scraper-cancel-job`: marca `cancelled`.
+- `scraper-mock-worker`: **stub temporal** que simula el worker (genera resultados ficticios coherentes con los filtros y los inserta progresivamente con delays). Se desactiva automáticamente cuando configures el secret `WORKER_WEBHOOK_URL` real.
+- `scraper-ingest-results` (con header `X-Worker-Token`): endpoint que tu worker externo llamará para insertar resultados de forma segura (alternativa a conexión directa a Postgres).
+
+**Service layer:**
+- `services/opportunities.service.ts` con interfaz `createSearch / getJob / listJobs / streamResults / saveSearch / listSaved / convertToLead / convertToProperty`.
+- Implementación Supabase real (no mock).
+
+**Página `/oportunidades`** (en sidebar, grupo "Comercial", icono `Search`):
+- **Panel de filtros** (formulario con react-hook-form + zod):
+  - Operación: compra / alquiler / alquiler temporal
+  - Tipo: piso / casa / ático / dúplex / estudio / local / oficina / garaje / terreno (multi)
+  - Ubicación: ciudad + zonas (multi-select), o búsqueda libre
+  - Radio en km (si geocoding disponible)
+  - Precio min/max
+  - Superficie min/max (m²)
+  - Habitaciones min, baños min
+  - Anunciante: particular / agencia / ambos
+  - Estado: nuevo / segunda mano / obra nueva
+  - Extras: ascensor, terraza, parking, piscina, exterior, amueblado, mascotas
+  - Antigüedad del anuncio (24h / 7d / 30d / cualquiera)
+  - Portales a consultar (checkboxes: Idealista, Fotocasa, Habitaclia) — multi
+- **Botón "Buscar"** → crea job → la pantalla cambia a vista de resultados en streaming.
+- **Vista de resultados**:
+  - Indicador de progreso por portal (chip "Idealista: 12 resultados · Fotocasa: en curso…").
+  - Toggle Tabla / Tarjetas / Mapa (mapa con leaflet si hay coordenadas).
+  - Cada resultado: imagen, título, precio, m², habs, zona, anunciante (badge particular/agencia), portal (badge), botón "Ver anuncio" (abre URL original), botón "Convertir en inmueble" (lo crea en `properties` del tenant), botón "Crear lead asociado".
+  - Filtrado/ordenación cliente: precio, €/m², fecha publicación, superficie.
+  - Deduplicación cliente entre portales por `título + precio + superficie` (los mismos pisos aparecen en varios portales).
+- **Búsquedas guardadas**: panel lateral con las búsquedas del usuario, "Re-ejecutar", "Programar diaria" (cron, queda preparado, ejecución cuando el worker exista).
+- **Histórico de jobs**: tabla con jobs anteriores, estado, nº resultados, fecha.
+
+### B4. Aviso legal y de uso
+En la primera entrada al módulo, modal informativo de un solo uso:
+> "El uso de este módulo para extraer datos de portales puede infringir sus términos de servicio. Esta funcionalidad debe operarse desde infraestructura propia con proxies residenciales y respeto a robots.txt y rate limits razonables. InmoOS provee la infraestructura de orquestación; la responsabilidad del uso recae en el cliente."
+
+Aceptación guardada en `profiles.scraper_terms_accepted_at`.
+
+### B5. Documentación entregable
+Archivo `docs/scraper-worker.md` con:
+- Stack recomendado (Node 20 + Playwright + stealth + BullMQ + Redis + proveedor de proxies).
+- Esqueleto de adapter por portal.
+- Contrato exacto de tablas y endpoints de ingesta.
+- Variables de entorno necesarias.
+- Recomendaciones de rate limit (≤1 req/8s por proxy por dominio, ≤30 jobs/hora por tenant).
 
 ---
 
-## Multi-tenant y roles (Lovable Cloud)
+## Decisiones técnicas resumidas
 
-- Tablas: `tenants`, `profiles` (vinculado a `auth.users`), `user_roles` (tabla separada con enum `app_role`: `admin`, `director`, `agente`, `backoffice`), `user_tenants` (relación N:M).
-- RLS en todas las tablas con función `has_role()` security definer.
-- Header `X-Tenant-Id` inyectado automáticamente en todas las llamadas del service layer al backend externo.
-- Hook `useCurrentTenant()` y `useRole()` para gating de UI.
-
----
-
-## Diseño visual
-
-- **Tokens HSL en `index.css`**: paleta neutra slate + acento `--primary` azul sobrio (`221 83% 53%` light / `217 91% 60%` dark), semánticos para `success/warning/danger/info`, superficies en 3 niveles (`bg`, `card`, `elevated`).
-- Toggle light/dark con persistencia. Dark con superficies `slate-950 → slate-900 → slate-800`, bordes sutiles, no negro puro.
-- Tipografía Inter, escalas tight para tablas densas, números tabulares en KPIs.
-- Sidebar colapsable (icon mode), topbar fija con buscador global ⌘K, breadcrumbs, selector de tenant, avatar.
-- Componentes compartidos: `DataTable` (sort, filter, paginación, selección, column visibility), `FilterBar`, `StatusBadge`, `ScoreBadge` (caliente/templado/frío/descartable), `Timeline`, `SidePanel` (detalle rápido sin perder contexto), `EmptyState`, `Skeleton`, `KpiCard`.
+- **Realtime** sobre `scraper_jobs` + `scraper_results` para UX en streaming.
+- **Edge Function como mock-worker temporal** para que la demo funcione hoy; se desconecta solo cuando configures `WORKER_WEBHOOK_URL`.
+- **Worker real fuera de Lovable** — no negociable técnicamente.
+- **Resultados normalizados** a un esquema único; `raw` jsonb guarda la respuesta original de cada portal por si se necesitan campos extra.
+- **Conversión 1-clic** de oportunidad → `properties` o → `leads`, cerrando el ciclo comercial.
 
 ---
 
-## Páginas y módulos
+## Orden de ejecución sugerido
 
-### 1. Auth
-- `/login`, `/register`, `/reset-password` con email+password (Lovable Cloud). Onboarding mínimo de tenant tras primer registro.
+1. Migraciones de la Parte A (leads/properties/visits/tasks) + servicios Supabase.
+2. Perfil y configuración de tenant editables.
+3. Migraciones del scraper + Edge Functions + mock-worker.
+4. Página `/oportunidades` completa.
+5. Documentación del worker externo.
 
-### 2. Dashboard ejecutivo (`/`)
-KPIs en tarjetas: leads nuevos (24h/7d), tiempo medio de respuesta, leads cualificados, visitas agendadas/realizadas, ratio lead→visita, ratio visita→cierre, operaciones cerradas, leads dormidos, tareas vencidas. Gráficos: embudo de conversión, leads por canal, actividad por agente, evolución semanal. Widgets: top agentes, leads calientes sin atender, próximas visitas.
-
-### 3. Leads — Inbox comercial (`/leads`)
-Tabla densa con: lead, origen, canal, inmueble de interés, estado, prioridad, **scoring visual**, agente asignado, próxima acción, tags, última actividad. Filtros avanzados (estado, canal, agente, score, fecha, zona, presupuesto), búsqueda, ordenación, selección masiva (asignar/cambiar estado/exportar). Vista alternativa **Kanban por estado**. Panel lateral de detalle rápido al hacer click sin salir de la lista.
-
-### 4. Ficha de Lead (`/leads/:id`)
-Layout 3 columnas:
-- **Izquierda:** datos personales, contacto, presupuesto, operación, zona, tipo, urgencia, financiación, preferencias.
-- **Centro:** Tabs `Resumen` / `Cualificación` / `Conversaciones` / `Visitas` / `Documentos` / `Notas`. Bloques destacados **"Resumen inteligente"** y **"Recomendación de siguiente acción"** (mock vía `ai.service.ts`, sustituible por endpoint real).
-- **Derecha:** timeline cronológico completo, tareas pendientes, inmuebles vinculados.
-
-### 5. Cualificación comercial
-Formulario guiado por pasos dentro de la ficha: presupuesto, financiación (aprobada/pendiente/no), urgencia, operación, ubicación, características prioritarias, perfil, intención. Al guardar, recalcula score (mock determinista por reglas ahora, IA después) y muestra `ScoreBadge` + explicación textual del porqué.
-
-### 6. Agenda y Visitas (`/agenda`)
-Vistas: calendario mensual/semanal, por agente, por inmueble, listado. Crear/proponer visita, confirmar, reagendar, marcar no-show, registrar resultado con feedback estructurado. Recordatorios visibles. Cada visita enlaza a lead e inmueble.
-
-### 7. Seguimiento y Automatizaciones (`/automations`)
-- Vista de **colas inteligentes**: leads sin respuesta, dormidos, post-visita, pendientes de documentación, para reactivación.
-- Editor de **reglas/secuencias**: trigger → condiciones → pasos (esperar, enviar plantilla, crear tarea, cambiar estado, notificar). Activar/desactivar, ver ejecuciones recientes, logs funcionales por lead. Ejecución real vivirá en backend; UI lista.
-
-### 8. Inmuebles (`/properties`)
-Listado con filtros (estado, operación, zona, precio, tipo). Ficha con galería, datos completos, agente responsable, leads asociados, visitas asociadas, histórico comercial. Acción "vincular a lead".
-
-### 9. Documentos (`/documents`)
-Upload (drag&drop), listado por categoría (contratos, reservas, notas simples, escrituras, internos, fichas). Estado de procesamiento (subido / procesando / listo / error). Vista de documento con: resumen, datos clave extraídos, **chat de preguntas al documento** — todo mock vía `documents.service.ts`, listo para RAG real.
-
-### 10. Base de conocimiento (`/knowledge`)
-CRUD de artículos: FAQs, procesos, argumentarios, políticas, respuestas modelo, info de zonas. Editor markdown, etiquetas, categorías, búsqueda, versionado simple (historial de revisiones). Pensada para alimentar agentes IA.
-
-### 11. Tareas y Actividad (`/tasks`, `/activity`)
-Tareas: lista priorizada, filtros por tipo (llamada/seguimiento/documentación/visita/incidencia), por agente, por vencimiento; vista "mis tareas" y "equipo". Actividad global: feed de cambios de estado, asignaciones, notas, visitas, uploads.
-
-### 12. Equipo / Usuarios (`/team`)
-Listado de miembros, rol, estado, métricas básicas. Invitar usuario, cambiar rol (gating por `admin`/`director`).
-
-### 13. Configuración (`/settings`)
-Subsecciones: inmobiliaria (datos, branding básico, logo), horarios, agentes, canales, plantillas (email/WhatsApp/SMS), estados personalizados, etiquetas, orígenes de lead.
-
-### 14. Integraciones (`/integrations`)
-Catálogo de tarjetas: WhatsApp Business, Email, CRM externo, formularios web, calendario, APIs custom. Cada una con estado (conectado/no), botón conectar (UI lista, conexión real vendrá del backend), webhook URL visible.
-
-### 15. Perfil (`/profile`)
-Datos personales, preferencias, notificaciones, cambio de contraseña, tema light/dark.
-
----
-
-## Modelo de datos (entidades del dominio)
-
-`Tenant`, `User`, `UserRole`, `Lead`, `LeadStatus` (enum), `LeadScore`, `Property`, `Visit`, `Task`, `Note`, `Activity`, `Document`, `AutomationRule`, `AutomationRun`, `Template`, `KnowledgeArticle`, `Integration`, `ContactChannel`, `Tag`. Tipos TypeScript en `modules/*/types.ts`, compartidos por mock y futuro cliente REST.
-
-En Cloud (persistido ahora): `tenants`, `profiles`, `user_roles`, `user_tenants`. El resto vive mock detrás de servicios hasta conexión a tu FastAPI.
-
----
-
-## Qué queda explícitamente mockeado (sustituible)
-
-Cada servicio mock lleva comentario `// MOCK — replace with REST call to <endpoint>`:
-- `ai.service.ts` → scoring, resumen lead, next-action, explicación score
-- `documents.service.ts` → parsing, extracción, Q&A documental
-- `knowledge.service.ts` → búsqueda semántica
-- `automations.service.ts` → ejecución de reglas
-- `leads/properties/visits/tasks.service.ts` → CRUD (listo para apuntar a tu API)
-
----
-
-## Datos seed
-
-Generador con ~60 leads realistas (nombres ES, zonas Madrid/Barcelona/Valencia), ~25 inmuebles, ~30 visitas, ~40 tareas, 12 artículos de conocimiento, 8 documentos, 5 reglas de automatización, 4 usuarios con roles distintos. Coherentes entre sí (un lead enlaza a inmueble real, sus visitas, sus tareas, su timeline).
-
----
-
-## Entregable de esta iteración
-
-Aplicación navegable end-to-end con los 10 módulos, auth real multi-tenant, roles, tema dual, datos seed coherentes, service layer completo y documentado. Lista para que conectes tu backend cambiando los bindings de servicios.
+¿Procedemos?
