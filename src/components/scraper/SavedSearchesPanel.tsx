@@ -69,7 +69,7 @@ export function SavedSearchesPanel({ currentParams, currentPortals }: Props) {
       tenant_id: tenant.id,
       user_id: user.id,
       name: name.trim(),
-      params: (currentParams ?? {}) as Record<string, unknown>,
+      params: JSON.parse(JSON.stringify(currentParams ?? {})),
       portals: currentPortals,
     }]);
     setSaving(false);
