@@ -76,14 +76,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadTenants = useCallback(async (uid: string) => {
-    const { data: memberships } = await supabase
+    // 1. Memberships (no embed — more robust against RLS/relationship inference quirks)
+    const { data: memberships, error: mErr } = await supabase
       .from("user_tenants")
-      .select("tenant_id, is_default, tenants(*)")
+      .select("tenant_id, is_default")
       .eq("user_id", uid);
 
-    const list: TenantRow[] = (memberships ?? [])
-      .map((m) => m.tenants as unknown as TenantRow)
-      .filter(Boolean);
+    if (mErr) console.warn("[auth] loadTenants memberships error", mErr);
+
+    const tenantIds = (memberships ?? []).map((m) => m.tenant_id);
+
+    let list: TenantRow[] = [];
+    if (tenantIds.length > 0) {
+      const { data: tenantRows, error: tErr } = await supabase
+        .from("tenants")
+        .select("*")
+        .in("id", tenantIds);
+      if (tErr) console.warn("[auth] loadTenants tenants error", tErr);
+      list = (tenantRows ?? []) as TenantRow[];
+    }
 
     setTenants(list);
 
