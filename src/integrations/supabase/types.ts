@@ -14,6 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
+      lead_activity: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string
+          payload: Json | null
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          payload?: Json | null
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          payload?: Json | null
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_activity_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_activity_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_notes: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          lead_id: string
+          tenant_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          tenant_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          budget_max: number | null
+          budget_min: number | null
+          created_at: string
+          email: string | null
+          id: string
+          interests: Json | null
+          last_activity_at: string
+          name: string
+          notes: string | null
+          phone: string | null
+          score: number | null
+          source: string | null
+          status: string
+          tags: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          interests?: Json | null
+          last_activity_at?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          score?: number | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          interests?: Json | null
+          last_activity_at?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          score?: number | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -22,6 +177,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          scraper_terms_accepted_at: string | null
           updated_at: string
         }
         Insert: {
@@ -31,6 +187,7 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
+          scraper_terms_accepted_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -40,9 +197,368 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          scraper_terms_accepted_at?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      properties: {
+        Row: {
+          address: string | null
+          agent_id: string | null
+          bathrooms: number | null
+          city: string | null
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          images: string[] | null
+          operation: string
+          owner_id: string | null
+          price: number | null
+          property_type: string
+          reference: string
+          rooms: number | null
+          source_portal: string | null
+          source_url: string | null
+          status: string
+          surface_m2: number | null
+          tenant_id: string
+          title: string
+          updated_at: string
+          zone: string | null
+        }
+        Insert: {
+          address?: string | null
+          agent_id?: string | null
+          bathrooms?: number | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          images?: string[] | null
+          operation?: string
+          owner_id?: string | null
+          price?: number | null
+          property_type?: string
+          reference: string
+          rooms?: number | null
+          source_portal?: string | null
+          source_url?: string | null
+          status?: string
+          surface_m2?: number | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+          zone?: string | null
+        }
+        Update: {
+          address?: string | null
+          agent_id?: string | null
+          bathrooms?: number | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          images?: string[] | null
+          operation?: string
+          owner_id?: string | null
+          price?: number | null
+          property_type?: string
+          reference?: string
+          rooms?: number | null
+          source_portal?: string | null
+          source_url?: string | null
+          status?: string
+          surface_m2?: number | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_searches: {
+        Row: {
+          created_at: string
+          id: string
+          last_run_at: string | null
+          name: string
+          params: Json
+          portals: string[]
+          schedule: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_run_at?: string | null
+          name: string
+          params?: Json
+          portals?: string[]
+          schedule?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          params?: Json
+          portals?: string[]
+          schedule?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_searches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scraper_jobs: {
+        Row: {
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          params: Json
+          portals: string[]
+          progress: Json | null
+          results_count: number
+          started_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          params?: Json
+          portals?: string[]
+          progress?: Json | null
+          results_count?: number
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          params?: Json
+          portals?: string[]
+          progress?: Json | null
+          results_count?: number
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scraper_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scraper_results: {
+        Row: {
+          address: string | null
+          bathrooms: number | null
+          city: string | null
+          created_at: string
+          description: string | null
+          external_id: string
+          id: string
+          images: string[] | null
+          job_id: string
+          lat: number | null
+          listing_type: string | null
+          lng: number | null
+          operation: string | null
+          portal: string
+          price: number | null
+          property_type: string | null
+          published_at: string | null
+          raw: Json | null
+          rooms: number | null
+          surface_m2: number | null
+          tenant_id: string
+          title: string | null
+          url: string | null
+          zone: string | null
+        }
+        Insert: {
+          address?: string | null
+          bathrooms?: number | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          external_id: string
+          id?: string
+          images?: string[] | null
+          job_id: string
+          lat?: number | null
+          listing_type?: string | null
+          lng?: number | null
+          operation?: string | null
+          portal: string
+          price?: number | null
+          property_type?: string | null
+          published_at?: string | null
+          raw?: Json | null
+          rooms?: number | null
+          surface_m2?: number | null
+          tenant_id: string
+          title?: string | null
+          url?: string | null
+          zone?: string | null
+        }
+        Update: {
+          address?: string | null
+          bathrooms?: number | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          external_id?: string
+          id?: string
+          images?: string[] | null
+          job_id?: string
+          lat?: number | null
+          listing_type?: string | null
+          lng?: number | null
+          operation?: string | null
+          portal?: string
+          price?: number | null
+          property_type?: string | null
+          published_at?: string | null
+          raw?: Json | null
+          rooms?: number | null
+          surface_m2?: number | null
+          tenant_id?: string
+          title?: string | null
+          url?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scraper_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "scraper_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scraper_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_at: string | null
+          id: string
+          lead_id: string | null
+          priority: string
+          property_id: string | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          priority?: string
+          property_id?: string | null
+          status?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          priority?: string
+          property_id?: string | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenant_invitations: {
         Row: {
@@ -178,6 +694,73 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "user_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits: {
+        Row: {
+          agent_id: string
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          outcome: string | null
+          property_id: string | null
+          scheduled_at: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          outcome?: string | null
+          property_id?: string | null
+          scheduled_at: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          outcome?: string | null
+          property_id?: string | null
+          scheduled_at?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
