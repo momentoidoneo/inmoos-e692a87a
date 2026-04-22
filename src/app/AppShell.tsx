@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "./AuthContext";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 const breadcrumbMap: Record<string, string> = {
   "": "Dashboard",
@@ -40,6 +41,7 @@ export function AppShell() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const { activeTenant, tenants, switchTenant, signOut, profile, user } = useAuth();
+  useTenantBranding();
 
   const initials = useMemo(() => {
     const src = profile?.full_name ?? user?.email ?? "?";
