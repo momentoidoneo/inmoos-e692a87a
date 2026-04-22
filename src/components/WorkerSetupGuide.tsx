@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { BookOpen, ExternalLink, Loader2 } from "lucide-react";
+import { BookOpen, Download, ExternalLink, FileText, Loader2 } from "lucide-react";
 
 const SOURCES = {
   readme: { url: "/docs/scraper-worker/README.md", label: "Arquitectura" },
@@ -80,15 +80,26 @@ export function WorkerSetupGuide() {
           ))}
         </Tabs>
 
-        <div className="mt-3 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
-          <span>El código fuente del worker está en <code className="font-mono">docs/scraper-worker/files/</code></span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="default">
+              <a href="/docs/scraper-worker/guia-worker-scraping.pdf" download>
+                <Download className="mr-2 h-4 w-4" /> PDF
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <a href="/docs/scraper-worker/guia-worker-scraping.docx" download>
+                <FileText className="mr-2 h-4 w-4" /> Word (.docx)
+              </a>
+            </Button>
+          </div>
           <a
             href={SOURCES[active].url}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
-            Abrir en pestaña <ExternalLink className="h-3 w-3" />
+            Abrir pestaña actual <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       </SheetContent>
