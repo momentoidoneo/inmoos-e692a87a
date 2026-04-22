@@ -65,13 +65,13 @@ export function SavedSearchesPanel({ currentParams, currentPortals }: Props) {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("saved_searches").insert({
+    const { error } = await supabase.from("saved_searches").insert([{
       tenant_id: tenant.id,
       user_id: user.id,
       name: name.trim(),
-      params: currentParams ?? {},
+      params: (currentParams ?? {}) as Record<string, unknown>,
       portals: currentPortals,
-    });
+    }]);
     setSaving(false);
     if (error) {
       toast.error("Error", { description: error.message });
