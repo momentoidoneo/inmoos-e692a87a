@@ -100,7 +100,7 @@ export const opportunitiesService = {
 
   async getJob(jobId: string): Promise<ScraperJob | null> {
     const { data } = await supabase.from("scraper_jobs").select("*").eq("id", jobId).maybeSingle();
-    return (data as ScraperJob) ?? null;
+    return (data as unknown as ScraperJob) ?? null;
   },
 
   async listJobs(): Promise<ScraperJob[]> {
@@ -109,14 +109,14 @@ export const opportunitiesService = {
     const { data } = await supabase
       .from("scraper_jobs").select("*").eq("tenant_id", tid)
       .order("created_at", { ascending: false }).limit(50);
-    return (data as ScraperJob[]) ?? [];
+    return (data as unknown as ScraperJob[]) ?? [];
   },
 
   async listResults(jobId: string): Promise<ScraperResult[]> {
     const { data } = await supabase
       .from("scraper_results").select("*").eq("job_id", jobId)
       .order("created_at", { ascending: false });
-    return (data as ScraperResult[]) ?? [];
+    return (data as unknown as ScraperResult[]) ?? [];
   },
 
   subscribeJob(jobId: string, onChange: (job: ScraperJob) => void) {
