@@ -79,10 +79,14 @@ Deno.serve(async (req) => {
       .eq("singleton", true)
       .maybeSingle();
 
-    if (cfg?.worker_url && cfg?.worker_token) {
-      fetch(cfg.worker_url.replace(/\/$/, "") + "/jobs", {
+    // Prefer the secret WORKER_URL/WORKER_TOKEN over DB values when present.
+    const workerUrl = Deno.env.get("WORKER_URL") ?? cfg?.worker_url ?? null;
+    const workerToken = Deno.env.get("WORKER_TOKEN") ?? cfg?.worker_token ?? null;
+
+    if (workerUrl && workerToken) {
+      fetch(workerUrl.replace(/\/$/, "") + "/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Worker-Token": cfg.worker_token },
+        headers: { "Content-Type": "application/json", "x-worker-token": workerToken },
         body: JSON.stringify({ jobId: job.id, tenantId, params, portals }),
       }).catch(() => {});
     } else {
