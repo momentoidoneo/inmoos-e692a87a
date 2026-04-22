@@ -165,7 +165,7 @@ export default function WorkerSettings() {
               <CardTitle className="flex items-center gap-2">
                 Estado del worker
                 {online ? (
-                  <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15">
+                  <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
                     <Wifi className="mr-1 h-3 w-3" /> Online
                   </Badge>
                 ) : (
