@@ -17,7 +17,6 @@ import type { Lead, Visit } from "@/modules/types";
 import { fmtDateTime } from "@/lib/format";
 import { leadChannelLabel } from "@/lib/labels";
 import { WorkerStatusBadge } from "@/components/scraper/WorkerStatusBadge";
-import { EnqueueScrapePanel } from "@/components/scraper/EnqueueScrapePanel";
 
 export default function Dashboard() {
   const { user, users } = useApp();
@@ -197,7 +196,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <EnqueueScrapePanel />
     </div>
   );
 }

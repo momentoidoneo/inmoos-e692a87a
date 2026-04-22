@@ -3,20 +3,23 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { enqueueScrapeJob, type Portal } from "@/lib/scraper-worker";
+import { supabase } from "@/integrations/supabase/client";
+import { useApp } from "@/app/AppContext";
 
+type Portal = "idealista" | "fotocasa" | "habitaclia";
 const PORTALS: Portal[] = ["idealista", "fotocasa", "habitaclia"];
 
 const paramsSchema = z.record(z.string(), z.unknown());
 
 export function EnqueueScrapePanel() {
-  const [tenantId, setTenantId] = useState("");
+  const { tenant } = useApp();
   const [portals, setPortals] = useState<Portal[]>(["idealista"]);
-  const [paramsText, setParamsText] = useState('{\n  "city": "Barcelona",\n  "operation": "venta"\n}');
+  const [paramsText, setParamsText] = useState(
+    '{\n  "city": "Barcelona",\n  "operation": "venta"\n}'
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const togglePortal = (p: Portal, checked: boolean) => {
@@ -24,10 +27,6 @@ export function EnqueueScrapePanel() {
   };
 
   const handleSubmit = async () => {
-    if (!tenantId.trim()) {
-      toast.error("Indica un tenantId");
-      return;
-    }
     if (portals.length === 0) {
       toast.error("Selecciona al menos un portal");
       return;
@@ -45,8 +44,12 @@ export function EnqueueScrapePanel() {
 
     setSubmitting(true);
     try {
-      const res = await enqueueScrapeJob({ tenantId: tenantId.trim(), portals, params: parsedParams });
-      toast.success("Job encolado", { description: `jobId: ${res.jobId}` });
+      const { data, error } = await supabase.functions.invoke("scraper-create-job", {
+        body: { tenantId: tenant.id, portals, params: parsedParams },
+      });
+      if (error) throw new Error(error.message);
+      const jobId = (data as { jobId?: string } | null)?.jobId;
+      toast.success("Job encolado", { description: jobId ? `jobId: ${jobId}` : undefined });
     } catch (e) {
       toast.error("Error encolando job", {
         description: e instanceof Error ? e.message : "Error desconocido",
@@ -60,19 +63,11 @@ export function EnqueueScrapePanel() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Lanzar scrape</CardTitle>
-        <CardDescription>Encola un job en el worker de scraping</CardDescription>
+        <CardDescription>
+          Encola un job que se registra en la base de datos y se envía al worker
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="tenantId">Tenant ID</Label>
-          <Input
-            id="tenantId"
-            value={tenantId}
-            onChange={(e) => setTenantId(e.target.value)}
-            placeholder="uuid del tenant"
-          />
-        </div>
-
         <div className="space-y-1.5">
           <Label>Portales</Label>
           <div className="flex gap-4">

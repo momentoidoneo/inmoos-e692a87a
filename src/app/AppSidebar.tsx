@@ -24,6 +24,7 @@ const groups: { label: string; items: Item[] }[] = [
       { title: "Inmuebles", url: "/inmuebles", icon: Building2 },
       { title: "Tareas", url: "/tareas", icon: ListChecks },
       { title: "Oportunidades", url: "/oportunidades", icon: Search },
+      { title: "Scraper", url: "/scraper", icon: Server },
       { title: "Actividad", url: "/actividad", icon: Activity },
     ],
   },
