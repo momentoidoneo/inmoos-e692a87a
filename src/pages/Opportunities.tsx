@@ -140,7 +140,17 @@ export default function Opportunities() {
     const name = prompt("Nombre de la búsqueda guardada:");
     if (!name) return;
     const params: ScraperParams = {
-      ...values, propertyTypes: propertyTypes as ScraperParams["propertyTypes"],
+      operation: values.operation,
+      city: values.city,
+      listingType: values.listingType,
+      adAge: values.adAge,
+      priceMin: values.priceMin || undefined,
+      priceMax: values.priceMax || undefined,
+      surfaceMin: values.surfaceMin || undefined,
+      surfaceMax: values.surfaceMax || undefined,
+      roomsMin: values.roomsMin || undefined,
+      bathroomsMin: values.bathroomsMin || undefined,
+      propertyTypes: propertyTypes as ScraperParams["propertyTypes"],
       zones: values.zones?.split(",").map((s) => s.trim()).filter(Boolean) ?? [],
       features,
     };
