@@ -12,6 +12,25 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Download, ExternalLink, FileText, Loader2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  } catch (e) {
+    toast({ title: "Error al descargar", description: String(e), variant: "destructive" });
+  }
+}
 
 const SOURCES = {
   readme: { url: "/docs/scraper-worker/README.md", label: "Arquitectura" },
