@@ -1,0 +1,29 @@
+{
+  "name": "inmoos-scraper-worker",
+  "version": "1.0.0",
+  "description": "Worker externo del scraper de portales inmobiliarios para InmoOS",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.1",
+    "bullmq": "^5.21.2",
+    "hono": "^4.6.5",
+    "ioredis": "^5.4.1",
+    "playwright": "^1.47.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "undici": "^6.20.0",
+    "user-agents": "^1.1.345",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}
