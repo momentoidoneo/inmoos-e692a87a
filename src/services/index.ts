@@ -1,16 +1,13 @@
 /**
  * Service layer entry point.
  *
- * Each domain has an interface + a mock implementation + a REST stub.
- * Switching to the real backend = changing the export below.
- *
- *    import.meta.env.VITE_USE_REAL_API === "true"  →  REST adapters
- *    otherwise                                    →  in-memory mock
+ * Core CRM modules (leads, properties, visits, tasks) are backed by Supabase.
+ * Other domains stay mock until the FastAPI backend exposes them.
  */
-import { LeadsService, MockLeadsService } from "./leads.service";
-import { PropertiesService, MockPropertiesService } from "./properties.service";
-import { VisitsService, MockVisitsService } from "./visits.service";
-import { TasksService, MockTasksService } from "./tasks.service";
+import { LeadsService } from "./leads.service";
+import { PropertiesService } from "./properties.service";
+import { VisitsService } from "./visits.service";
+import { TasksService } from "./tasks.service";
 import { DocumentsService, MockDocumentsService } from "./documents.service";
 import { KnowledgeService, MockKnowledgeService } from "./knowledge.service";
 import { AutomationsService, MockAutomationsService } from "./automations.service";
@@ -21,13 +18,16 @@ import { IntegrationsService, MockIntegrationsService } from "./integrations.ser
 import { ActivityService, MockActivityService } from "./activity.service";
 import { DashboardService, MockDashboardService } from "./dashboard.service";
 
-const useReal = import.meta.env.VITE_USE_REAL_API === "true";
+import { SupabaseLeadsService } from "./supabase/leads.supabase";
+import { SupabasePropertiesService } from "./supabase/properties.supabase";
+import { SupabaseVisitsService } from "./supabase/visits.supabase";
+import { SupabaseTasksService } from "./supabase/tasks.supabase";
 
 export const services = {
-  leads: new MockLeadsService() as LeadsService,
-  properties: new MockPropertiesService() as PropertiesService,
-  visits: new MockVisitsService() as VisitsService,
-  tasks: new MockTasksService() as TasksService,
+  leads: new SupabaseLeadsService() as LeadsService,
+  properties: new SupabasePropertiesService() as PropertiesService,
+  visits: new SupabaseVisitsService() as VisitsService,
+  tasks: new SupabaseTasksService() as TasksService,
   documents: new MockDocumentsService() as DocumentsService,
   knowledge: new MockKnowledgeService() as KnowledgeService,
   automations: new MockAutomationsService() as AutomationsService,
@@ -39,4 +39,4 @@ export const services = {
   dashboard: new MockDashboardService() as DashboardService,
 };
 
-export const isUsingRealApi = useReal;
+export const isUsingRealApi = true;
