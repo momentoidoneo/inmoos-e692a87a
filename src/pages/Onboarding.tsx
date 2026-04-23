@@ -37,6 +37,21 @@ export default function Onboarding() {
     if (!user) return;
     setBusy(true);
 
+    // Re-check that we actually have an authenticated session before insert.
+    // If the access token expired silently, RLS will reject the insert.
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      setBusy(false);
+      toast({
+        title: "Sesión expirada",
+        description: "Vuelve a iniciar sesión y prueba de nuevo.",
+        variant: "destructive",
+      });
+      await signOut();
+      navigate("/login", { replace: true });
+      return;
+    }
+
     const slug = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`;
 
     const { data: tenant, error: tErr } = await supabase
@@ -47,7 +62,14 @@ export default function Onboarding() {
 
     if (tErr || !tenant) {
       setBusy(false);
-      toast({ title: "Error creando inmobiliaria", description: tErr?.message, variant: "destructive" });
+      toast({
+        title: "Error creando inmobiliaria",
+        description:
+          tErr?.message?.includes("row-level security")
+            ? "Tu sesión no está autenticada correctamente. Cierra sesión y vuelve a entrar."
+            : tErr?.message,
+        variant: "destructive",
+      });
       return;
     }
 
