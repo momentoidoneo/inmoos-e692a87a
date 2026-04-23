@@ -110,8 +110,28 @@ export default function Onboarding() {
           <CardDescription>
             Configura el espacio de trabajo para tu equipo. Podrás invitar a más personas después.
           </CardDescription>
+          {user?.email && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Sesión: <span className="font-medium">{user.email}</span>
+            </p>
+          )}
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            ¿Ya tienes una inmobiliaria creada con esta cuenta? Pulsa para volver a cargarla.
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={async () => {
+                await refreshTenants();
+                navigate("/", { replace: true });
+              }}
+            >
+              Recargar mis inmobiliarias
+            </Button>
+          </div>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="tenant-name">Nombre de la inmobiliaria</Label>
