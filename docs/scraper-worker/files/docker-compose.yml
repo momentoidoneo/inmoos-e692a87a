@@ -1,4 +1,4 @@
-# Solo para desarrollo local. En producción usa Coolify.
+# Solo para desarrollo local. En producción usa Coolify (replicar shm_size en config Coolify).
 version: "3.9"
 services:
   worker:
@@ -6,6 +6,9 @@ services:
     ports:
       - "3000:3000"
     env_file: .env
+    # CRÍTICO: Chromium necesita >=512MB de memoria compartida o crashea con SIGSEGV.
+    # En Coolify, añade el equivalente: Service Settings → Custom Docker Options → --shm-size=1gb
+    shm_size: "1gb"
     depends_on:
       - redis
     restart: unless-stopped
