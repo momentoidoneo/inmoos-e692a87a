@@ -1,14 +1,17 @@
 /**
  * scraper-proxy
  * ---------------------------------------------------------------------------
- * Proxies HTTPS requests from the browser to the HTTP scraper worker
- * deployed on silvio-server (http://elmapa.duckdns.org:3030).
+ * Proxies HTTPS requests from the browser to the HTTP scraper worker.
  *
+ * - Reads worker URL + token from `worker_config` (singleton row), so changing
+ *   them in Settings → Worker takes effect immediately. Falls back to env vars
+ *   `WORKER_URL` / `WORKER_TOKEN` if the row is missing.
  * - Reads target path from `?path=/...` (defaults to `/`).
  * - Forwards method, query (minus `path`) and JSON body.
  * - Injects `x-worker-token` server-side. Token never reaches the browser.
- * - Returns the worker's response (status + JSON) as-is.
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -16,15 +19,37 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const WORKER_URL = Deno.env.get("WORKER_URL");
-const WORKER_TOKEN = Deno.env.get("WORKER_TOKEN");
+async function loadWorkerConfig(): Promise<{ url: string | null; token: string | null }> {
+  try {
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data } = await admin
+      .from("worker_config")
+      .select("worker_url, worker_token")
+      .eq("singleton", true)
+      .maybeSingle();
+    return {
+      url: data?.worker_url ?? Deno.env.get("WORKER_URL") ?? null,
+      token: data?.worker_token ?? Deno.env.get("WORKER_TOKEN") ?? null,
+    };
+  } catch {
+    return {
+      url: Deno.env.get("WORKER_URL") ?? null,
+      token: Deno.env.get("WORKER_TOKEN") ?? null,
+    };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (!WORKER_URL || !WORKER_TOKEN) {
+  const { url: workerUrl, token: workerToken } = await loadWorkerConfig();
+
+  if (!workerUrl || !workerToken) {
     return new Response(
       JSON.stringify({ error: "worker_not_configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -41,14 +66,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Preserve any extra query params (excluding `path`) when forwarding.
     const forwardedQuery = new URLSearchParams(url.searchParams);
     forwardedQuery.delete("path");
     const qs = forwardedQuery.toString();
-    const target = `${WORKER_URL.replace(/\/$/, "")}${path}${qs ? `?${qs}` : ""}`;
+    const target = `${workerUrl.replace(/\/$/, "")}${path}${qs ? `?${qs}` : ""}`;
 
     const headers: Record<string, string> = {
-      "x-worker-token": WORKER_TOKEN,
+      "x-worker-token": workerToken,
     };
 
     let body: string | undefined;
@@ -60,7 +84,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 10s timeout to avoid hanging the edge function if worker is down.
     const ctrl = new AbortController();
     const timeout = setTimeout(() => ctrl.abort(), 10_000);
 
@@ -87,12 +110,8 @@ Deno.serve(async (req) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown_error";
     return new Response(
-      JSON.stringify({ error: "proxy_failed", message }),
+      JSON.stringify({ error: "proxy_failed", message, target_url: workerUrl }),
       { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
-
-// TODO: pendiente crear la edge function `scraper-ingest-results` que recibirá
-// el callback del worker con los resultados del scraping (POST con array de
-// listings). Cuando exista, el worker enviará allí los datos al terminar.
