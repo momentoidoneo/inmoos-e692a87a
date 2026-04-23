@@ -1,13 +1,5 @@
 /**
  * AuthContext — wires Supabase auth + multi-tenant membership.
- *
- * Exposes:
- *   - session / user (Supabase auth)
- *   - profile (public.profiles row)
- *   - tenants the user belongs to
- *   - active tenant + role in that tenant
- *   - signIn / signUp / signOut helpers
- *   - switchTenant
  */
 import {
   createContext,
@@ -48,6 +40,8 @@ interface AuthContextValue {
   activeTenant: TenantRow | null;
   role: AppRole | null;
   loading: boolean;
+  tenantsLoaded: boolean;
+  tenantsError: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -69,6 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tenantsLoaded, setTenantsLoaded] = useState(false);
+  const [tenantsError, setTenantsError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async (uid: string) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
@@ -76,13 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadTenants = useCallback(async (uid: string) => {
-    // 1. Memberships (no embed — more robust against RLS/relationship inference quirks)
+    setTenantsError(null);
     const { data: memberships, error: mErr } = await supabase
       .from("user_tenants")
       .select("tenant_id, is_default")
       .eq("user_id", uid);
 
-    if (mErr) console.warn("[auth] loadTenants memberships error", mErr);
+    if (mErr) {
+      console.error("[auth] loadTenants memberships error", mErr);
+      setTenantsError(mErr.message);
+      setTenantsLoaded(true);
+      return;
+    }
 
     const tenantIds = (memberships ?? []).map((m) => m.tenant_id);
 
@@ -92,14 +93,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("tenants")
         .select("*")
         .in("id", tenantIds);
-      if (tErr) console.warn("[auth] loadTenants tenants error", tErr);
+      if (tErr) {
+        console.error("[auth] loadTenants tenants error", tErr);
+        setTenantsError(tErr.message);
+        setTenantsLoaded(true);
+        return;
+      }
       list = (tenantRows ?? []) as TenantRow[];
     }
 
     setTenants(list);
 
-    // pick active: stored → default membership → first
-    let nextId = activeTenantId && list.find((t) => t.id === activeTenantId)?.id;
+    const stored = localStorage.getItem(ACTIVE_TENANT_KEY);
+    let nextId: string | null = (stored && list.find((t) => t.id === stored)?.id) || null;
     if (!nextId) {
       const def = (memberships ?? []).find((m) => m.is_default);
       nextId = def?.tenant_id ?? list[0]?.id ?? null;
@@ -119,30 +125,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       httpConfig.setTenant(null);
       setRole(null);
     }
-  }, [activeTenantId]);
+    setTenantsLoaded(true);
+  }, []);
 
   useEffect(() => {
-    // 1. Subscribe FIRST to avoid missing events
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       httpConfig.setToken(newSession?.access_token ?? null);
 
       if (newSession?.user) {
-        // Defer Supabase calls to avoid deadlocks inside the listener
-        setTimeout(() => {
-          loadProfile(newSession.user.id);
-          loadTenants(newSession.user.id);
-        }, 0);
+        // Reload memberships only on real sign-in, NOT on every TOKEN_REFRESHED
+        if (event === "SIGNED_IN") {
+          setTimeout(() => {
+            loadProfile(newSession.user.id);
+            loadTenants(newSession.user.id);
+          }, 0);
+        }
       } else {
         setProfile(null);
         setTenants([]);
+        setTenantsLoaded(false);
         setRole(null);
         httpConfig.setTenant(null);
       }
     });
 
-    // 2. Then fetch existing session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
@@ -212,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeTenant,
     role,
     loading,
+    tenantsLoaded,
+    tenantsError,
     signIn,
     signUp,
     signOut,
