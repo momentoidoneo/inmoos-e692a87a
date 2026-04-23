@@ -1,5 +1,5 @@
-// Solver de DataDome / hCaptcha vía 2Captcha (https://2captcha.com/).
-// Activación: CAPTCHA_PROVIDER=2captcha + CAPTCHA_API_KEY=xxxxx
+// Solver de DataDome / hCaptcha vía Anti-Captcha (https://anti-captcha.com/).
+// Activación: CAPTCHA_PROVIDER=anticaptcha + CAPTCHA_API_KEY=xxxxx
 // Si no están definidos, las funciones devuelven null y el adapter sigue
 // (fallará el scrape pero no rompe el worker).
 
@@ -7,60 +7,92 @@ const PROVIDER = process.env.CAPTCHA_PROVIDER ?? "";
 const API_KEY = process.env.CAPTCHA_API_KEY ?? "";
 
 export function captchaEnabled(): boolean {
-  return PROVIDER === "2captcha" && API_KEY.length > 0;
+  return PROVIDER === "anticaptcha" && API_KEY.length > 0;
 }
 
 /**
- * Resuelve un captcha DataDome.
- * @param captchaUrl URL del iframe del captcha (la que carga geo.captcha-delivery.com)
+ * Resuelve un captcha DataDome con Anti-Captcha.
+ * Docs: https://anti-captcha.com/apidoc/task-types/DataDomeSliderTask
+ *
+ * @param captchaUrl URL del iframe del captcha (geo.captcha-delivery.com/...)
  * @param pageUrl URL de la página donde apareció el captcha
  * @param userAgent UA del navegador que lo recibió (debe coincidir)
+ * @param proxy Opcional: proxy a usar para resolver (recomendado, misma IP)
  * @returns cookie "datadome=..." lista para inyectar, o null si falla
  */
 export async function solveDataDome(
   captchaUrl: string,
   pageUrl: string,
   userAgent: string,
+  proxy?: { host: string; port: number; user?: string; pass?: string },
 ): Promise<string | null> {
   if (!captchaEnabled()) return null;
 
   try {
-    // Paso 1: enviar tarea
-    const submit = await fetch("https://2captcha.com/in.php", {
+    // Paso 1: crear tarea
+    const task: Record<string, any> = {
+      type: proxy ? "DataDomeSliderTask" : "DataDomeSliderTaskProxyless",
+      websiteURL: pageUrl,
+      captchaUrl,
+      userAgent,
+    };
+    if (proxy) {
+      task.proxyType = "http";
+      task.proxyAddress = proxy.host;
+      task.proxyPort = proxy.port;
+      if (proxy.user) task.proxyLogin = proxy.user;
+      if (proxy.pass) task.proxyPassword = proxy.pass;
+    }
+
+    const createRes = await fetch("https://api.anti-captcha.com/createTask", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        key: API_KEY,
-        method: "datadome",
-        captcha_url: captchaUrl,
-        pageurl: pageUrl,
-        userAgent,
-        json: "1",
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientKey: API_KEY, task }),
     });
-    const submitJson = (await submit.json()) as { status: number; request: string };
-    if (submitJson.status !== 1) {
-      console.error("[captcha] submit failed", submitJson);
+    const createJson = (await createRes.json()) as {
+      errorId: number;
+      errorCode?: string;
+      errorDescription?: string;
+      taskId?: number;
+    };
+    if (createJson.errorId !== 0 || !createJson.taskId) {
+      console.error("[captcha] createTask failed", createJson);
       return null;
     }
-    const taskId = submitJson.request;
+    const taskId = createJson.taskId;
     console.log("[captcha] submitted task", taskId);
 
-    // Paso 2: poll hasta 120s
+    // Paso 2: poll hasta 120s (cada 5s)
     for (let i = 0; i < 24; i++) {
       await new Promise((r) => setTimeout(r, 5000));
-      const res = await fetch(
-        `https://2captcha.com/res.php?key=${API_KEY}&action=get&id=${taskId}&json=1`,
-      );
-      const resJson = (await res.json()) as { status: number; request: string };
-      if (resJson.status === 1) {
-        console.log("[captcha] solved task", taskId);
-        return resJson.request; // cookie datadome
-      }
-      if (resJson.request !== "CAPCHA_NOT_READY") {
-        console.error("[captcha] solve error", resJson);
+      const res = await fetch("https://api.anti-captcha.com/getTaskResult", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientKey: API_KEY, taskId }),
+      });
+      const resJson = (await res.json()) as {
+        errorId: number;
+        status?: "processing" | "ready";
+        solution?: { cookie?: string; gRecaptchaResponse?: string };
+        errorCode?: string;
+        errorDescription?: string;
+      };
+      if (resJson.errorId !== 0) {
+        console.error("[captcha] getTaskResult error", resJson);
         return null;
       }
+      if (resJson.status === "ready") {
+        const cookie = resJson.solution?.cookie ?? null;
+        if (!cookie) {
+          console.error("[captcha] solution missing cookie", resJson);
+          return null;
+        }
+        console.log("[captcha] solved task", taskId);
+        // Anti-Captcha devuelve "datadome=XYZ" → extraemos solo el valor
+        const match = cookie.match(/datadome=([^;]+)/i);
+        return match ? match[1] : cookie;
+      }
+      // status === "processing" → seguir esperando
     }
     console.error("[captcha] timeout solving", taskId);
     return null;
