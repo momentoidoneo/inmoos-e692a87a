@@ -34,26 +34,39 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface Params {
   operation: string;
+  property_type?: string;
   propertyTypes?: string[];
+  property_types?: string[];
   city: string;
+  zone?: string;
   zones?: string[];
+  price_min?: number;
   priceMin?: number;
+  price_max?: number;
   priceMax?: number;
+  surface_min?: number;
   surfaceMin?: number;
+  surface_max?: number;
   surfaceMax?: number;
+  rooms_min?: number;
   roomsMin?: number;
+  listing_type?: "particular" | "agencia" | "ambos" | "any";
   listingType?: "particular" | "agencia" | "ambos";
 }
 
 function generate(portal: string, params: Params, jobId: string, tenantId: string, n: number) {
   const out = [];
-  const ptypes = params.propertyTypes?.length ? params.propertyTypes : ["piso"];
-  const zones = params.zones?.length ? params.zones : ["Centro"];
-  const minP = params.priceMin ?? 80000;
-  const maxP = params.priceMax ?? (params.operation === "compra" ? 800000 : 3500);
-  const minS = params.surfaceMin ?? 40;
-  const maxS = params.surfaceMax ?? 200;
-  const minR = params.roomsMin ?? 1;
+  const ptypes =
+    params.propertyTypes?.length ? params.propertyTypes
+    : params.property_types?.length ? params.property_types
+    : params.property_type ? [params.property_type]
+    : ["piso"];
+  const zones = params.zones?.length ? params.zones : params.zone ? [params.zone] : ["Centro"];
+  const minP = params.priceMin ?? params.price_min ?? 80000;
+  const maxP = params.priceMax ?? params.price_max ?? (params.operation === "compra" ? 800000 : 3500);
+  const minS = params.surfaceMin ?? params.surface_min ?? 40;
+  const maxS = params.surfaceMax ?? params.surface_max ?? 200;
+  const minR = params.roomsMin ?? params.rooms_min ?? 1;
 
   for (let i = 0; i < n; i++) {
     const ptype = ptypes[i % ptypes.length];
@@ -61,9 +74,10 @@ function generate(portal: string, params: Params, jobId: string, tenantId: strin
     const price = rand(minP, maxP);
     const surface = rand(minS, maxS);
     const rooms = rand(minR, Math.max(minR + 1, 5));
-    const lt = params.listingType === "ambos" || !params.listingType
+    const listingType = params.listingType ?? params.listing_type;
+    const lt = listingType === "ambos" || listingType === "any" || !listingType
       ? (Math.random() > 0.5 ? "agencia" : "particular")
-      : params.listingType;
+      : listingType;
     out.push({
       job_id: jobId,
       tenant_id: tenantId,

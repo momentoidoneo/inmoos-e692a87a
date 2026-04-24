@@ -64,16 +64,48 @@ Deno.serve(async (req) => {
       .eq("singleton", true)
       .maybeSingle();
 
-    // Prefer the secret WORKER_URL/WORKER_TOKEN over DB values when present.
-    const workerUrl = Deno.env.get("WORKER_URL") ?? cfg?.worker_url ?? null;
-    const workerToken = Deno.env.get("WORKER_TOKEN") ?? cfg?.worker_token ?? null;
+    // Prefer DB config so Settings -> Worker takes effect without changing Edge secrets.
+    const workerUrl = cfg?.worker_url?.trim() || Deno.env.get("WORKER_URL") || null;
+    const workerToken = cfg?.worker_token?.trim() || Deno.env.get("WORKER_TOKEN") || null;
 
     if (workerUrl && workerToken) {
-      fetch(workerUrl.replace(/\/$/, "") + "/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-worker-token": workerToken },
-        body: JSON.stringify({ jobId: job.id, tenantId, params, portals }),
-      }).catch(() => {});
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 8_000);
+      try {
+        const workerRes = await fetch(workerUrl.replace(/\/$/, "") + "/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-worker-token": workerToken },
+          body: JSON.stringify({ jobId: job.id, tenantId, params, portals }),
+          signal: ctrl.signal,
+        });
+
+        if (!workerRes.ok) {
+          const details = await workerRes.text().catch(() => "");
+          const message = `worker_enqueue_failed:${workerRes.status}${details ? `:${details.slice(0, 300)}` : ""}`;
+          await adminClient.from("scraper_jobs").update({
+            status: "error",
+            error: message,
+            finished_at: new Date().toISOString(),
+          }).eq("id", job.id);
+          return new Response(JSON.stringify({ error: message, jobId: job.id }), {
+            status: 502,
+            headers: { ...cors, "Content-Type": "application/json" },
+          });
+        }
+      } catch (err) {
+        const message = `worker_unreachable:${err instanceof Error ? err.message : String(err)}`;
+        await adminClient.from("scraper_jobs").update({
+          status: "error",
+          error: message,
+          finished_at: new Date().toISOString(),
+        }).eq("id", job.id);
+        return new Response(JSON.stringify({ error: message, jobId: job.id }), {
+          status: 502,
+          headers: { ...cors, "Content-Type": "application/json" },
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
     } else {
       // Demo fallback
       const projectId = Deno.env.get("SUPABASE_URL")!.split("//")[1].split(".")[0];

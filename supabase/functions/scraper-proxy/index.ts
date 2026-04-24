@@ -31,8 +31,8 @@ async function loadWorkerConfig(): Promise<{ url: string | null; token: string |
       .eq("singleton", true)
       .maybeSingle();
     return {
-      url: data?.worker_url ?? Deno.env.get("WORKER_URL") ?? null,
-      token: data?.worker_token ?? Deno.env.get("WORKER_TOKEN") ?? null,
+      url: data?.worker_url?.trim() || Deno.env.get("WORKER_URL") || null,
+      token: data?.worker_token?.trim() || Deno.env.get("WORKER_TOKEN") || null,
     };
   } catch {
     return {

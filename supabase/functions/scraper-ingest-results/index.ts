@@ -11,7 +11,8 @@ const corsHeaders = {
 
 const ResultSchema = z.object({
   portal: z.string(),
-  external_id: z.string(),
+  external_id: z.string().optional(),
+  id: z.string().optional(),
   url: z.string().optional(),
   title: z.string().optional(),
   price: z.number().nullable().optional(),
@@ -30,6 +31,9 @@ const ResultSchema = z.object({
   description: z.string().optional(),
   published_at: z.string().optional(),
   raw: z.record(z.unknown()).optional(),
+}).refine((r) => Boolean(r.external_id || r.id), {
+  message: "external_id_required",
+  path: ["external_id"],
 });
 
 const BodySchema = z.object({
@@ -44,7 +48,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const token = req.headers.get("X-Worker-Token");
-  if (!token || token !== Deno.env.get("WORKER_TOKEN")) {
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: cfg } = await supabase
+    .from("worker_config")
+    .select("worker_token")
+    .eq("singleton", true)
+    .maybeSingle();
+  const expectedToken = cfg?.worker_token?.trim() || Deno.env.get("WORKER_TOKEN");
+
+  if (!token || !expectedToken || token !== expectedToken) {
     return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
@@ -53,15 +65,22 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { jobId, results, progress, status, error } = parsed.data;
 
-  const { data: job } = await supabase.from("scraper_jobs").select("tenant_id, results_count").eq("id", jobId).single();
+  const { data: job } = await supabase.from("scraper_jobs").select("tenant_id, results_count, started_at").eq("id", jobId).single();
   if (!job) return new Response(JSON.stringify({ error: "job_not_found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   let added = 0;
   if (results?.length) {
-    const rows = results.map((r) => ({ ...r, job_id: jobId, tenant_id: job.tenant_id }));
+    const rows = results.map((r) => {
+      const { id: legacyId, external_id, ...rest } = r;
+      return {
+        ...rest,
+        external_id: external_id ?? legacyId,
+        job_id: jobId,
+        tenant_id: job.tenant_id,
+      };
+    });
     const { error: insErr, count } = await supabase.from("scraper_results").upsert(rows, { onConflict: "job_id,portal,external_id", count: "exact" });
     if (insErr) return new Response(JSON.stringify({ error: insErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     added = count ?? rows.length;
@@ -70,6 +89,7 @@ Deno.serve(async (req) => {
   const update: Record<string, unknown> = {};
   if (progress) update.progress = progress;
   if (status) update.status = status;
+  if (status === "running" && !job.started_at) update.started_at = new Date().toISOString();
   if (status === "done" || status === "error") update.finished_at = new Date().toISOString();
   if (error) update.error = error;
   if (added) update.results_count = (job.results_count ?? 0) + added;

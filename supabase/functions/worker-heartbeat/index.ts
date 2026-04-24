@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       .eq("singleton", true)
       .maybeSingle();
 
-    const expected = cfg?.worker_token;
+    const expected = cfg?.worker_token?.trim() || Deno.env.get("WORKER_TOKEN");
     const provided = req.headers.get("X-Worker-Token");
 
     if (!expected || provided !== expected) {

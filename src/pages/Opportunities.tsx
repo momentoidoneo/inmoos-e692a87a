@@ -21,6 +21,7 @@ import {
 } from "@/services/opportunities.service";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/app/AuthContext";
+import { useApp } from "@/app/AppContext";
 
 const PORTALS: { id: Portal; label: string }[] = [
   { id: "idealista", label: "Idealista" },
@@ -48,6 +49,7 @@ type FormValues = z.infer<typeof FormSchema>;
 
 export default function Opportunities() {
   const { user, profile } = useAuth();
+  const { tenant } = useApp();
   const [showTerms, setShowTerms] = useState(false);
   const [propertyTypes, setPropertyTypes] = useState<string[]>(["piso"]);
   const [features, setFeatures] = useState<string[]>([]);
@@ -91,9 +93,13 @@ export default function Opportunities() {
 
   // Realtime subscription for active job
   useEffect(() => {
-    if (!activeJob) return;
-    const offJob = opportunitiesService.subscribeJob(activeJob.id, (j) => setActiveJob(j));
-    const offRes = opportunitiesService.subscribeResults(activeJob.id, (r) => setResults((prev) => [r, ...prev]));
+    const jobId = activeJob?.id;
+    if (!jobId) return;
+    opportunitiesService.listResults(jobId).then(setResults).catch(() => {});
+    const offJob = opportunitiesService.subscribeJob(jobId, (j) => setActiveJob(j));
+    const offRes = opportunitiesService.subscribeResults(jobId, (r) => setResults((prev) => (
+      prev.some((item) => item.id === r.id) ? prev : [r, ...prev]
+    )));
     return () => { offJob(); offRes(); };
   }, [activeJob?.id]);
 
@@ -117,7 +123,7 @@ export default function Opportunities() {
         features,
         adAge: values.adAge,
       };
-      const { jobId } = await opportunitiesService.createJob(params, selectedPortals);
+      const { jobId } = await opportunitiesService.createJob(params, selectedPortals, tenant.id);
       const job = await opportunitiesService.getJob(jobId);
       setActiveJob(job);
       setResults([]);
@@ -160,7 +166,7 @@ export default function Opportunities() {
   };
 
   const runSaved = async (s: SavedSearch) => {
-    const { jobId } = await opportunitiesService.createJob(s.params, s.portals);
+    const { jobId } = await opportunitiesService.createJob(s.params, s.portals, tenant.id);
     const job = await opportunitiesService.getJob(jobId);
     setActiveJob(job);
     setResults([]);
@@ -374,10 +380,16 @@ export default function Opportunities() {
                     Configura los filtros y pulsa "Buscar" para iniciar.
                   </div>
                 )}
-                {activeJob && results.length === 0 && (
+                {activeJob && results.length === 0 && ["queued", "running"].includes(activeJob.status) && (
                   <div className="text-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground mt-2">Esperando resultados…</p>
+                  </div>
+                )}
+                {activeJob && results.length === 0 && !["queued", "running"].includes(activeJob.status) && (
+                  <div className="text-center py-16 text-sm text-muted-foreground">
+                    <p>No se encontraron resultados para esta búsqueda.</p>
+                    {activeJob.error && <p className="mt-2 text-destructive">{activeJob.error}</p>}
                   </div>
                 )}
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">

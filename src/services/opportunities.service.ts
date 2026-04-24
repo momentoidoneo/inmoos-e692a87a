@@ -84,13 +84,14 @@ export interface SavedSearch {
 }
 
 export const opportunitiesService = {
-  async createJob(params: ScraperParams, portals: Portal[]): Promise<{ jobId: string }> {
+  async createJob(params: ScraperParams, portals: Portal[], tenantIdOverride?: string): Promise<{ jobId: string }> {
     const { data: sess } = await supabase.auth.getSession();
     const { data, error } = await supabase.functions.invoke("scraper-create-job", {
-      body: { params, portals, tenantId: tenantId() },
+      body: { params, portals, tenantId: tenantIdOverride ?? tenantId() },
       headers: sess.session ? { Authorization: `Bearer ${sess.session.access_token}` } : {},
     });
     if (error) throw error;
+    if (!data?.jobId) throw new Error(data?.error ?? "No se recibió jobId del backend");
     return { jobId: data.jobId };
   },
 
