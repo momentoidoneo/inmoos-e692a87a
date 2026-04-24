@@ -9,28 +9,41 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Helper: optional string that also accepts null/empty (worker often sends null
+// for fields the portal didn't expose). We coerce to undefined so the DB stores NULL.
+const optStr = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v == null || v === "" ? undefined : v));
+
 const ResultSchema = z.object({
   portal: z.string(),
-  external_id: z.string().optional(),
-  id: z.string().optional(),
-  url: z.string().optional(),
-  title: z.string().optional(),
+  external_id: optStr,
+  id: optStr,
+  url: optStr,
+  title: optStr,
   price: z.number().nullable().optional(),
   surface_m2: z.number().nullable().optional(),
   rooms: z.number().nullable().optional(),
   bathrooms: z.number().nullable().optional(),
-  property_type: z.string().optional(),
-  operation: z.string().optional(),
-  address: z.string().optional(),
-  zone: z.string().optional(),
-  city: z.string().optional(),
+  property_type: optStr,
+  operation: optStr,
+  address: optStr,
+  zone: optStr,
+  city: optStr,
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
-  listing_type: z.enum(["particular", "agencia"]).optional(),
-  images: z.array(z.string()).optional(),
-  description: z.string().optional(),
-  published_at: z.string().optional(),
-  raw: z.record(z.unknown()).optional(),
+  listing_type: z
+    .union([z.enum(["particular", "agencia"]), z.null()])
+    .optional()
+    .transform((v) => v ?? undefined),
+  images: z
+    .array(z.union([z.string(), z.null()]))
+    .optional()
+    .transform((arr) => (arr ? arr.filter((s): s is string => typeof s === "string" && s.length > 0) : undefined)),
+  description: optStr,
+  published_at: optStr,
+  raw: z.record(z.unknown()).nullable().optional().transform((v) => v ?? undefined),
 }).refine((r) => Boolean(r.external_id || r.id), {
   message: "external_id_required",
   path: ["external_id"],
