@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     }
 
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 10_000);
+    const timeout = setTimeout(() => ctrl.abort(), 25_000);
 
     let workerRes: Response;
     try {
