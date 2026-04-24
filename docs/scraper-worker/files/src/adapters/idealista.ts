@@ -15,9 +15,30 @@ type Params = {
   listingType?: "particular" | "agencia" | "ambos";
 };
 
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-");
+}
+
 function buildIdealistaUrl(p: Params): string {
-  const op = p.operation === "compra" ? "venta-viviendas" : "alquiler-viviendas";
-  const slug = (p.city || "madrid").toLowerCase();
+  // Tipo de inmueble afecta al segmento: venta-viviendas (general), venta-pisos, venta-casas…
+  const typeMap: Record<string, string> = {
+    piso: "pisos",
+    casa: "casas",
+    chalet: "casas",
+    local: "locales",
+    oficina: "oficinas",
+    garaje: "garajes",
+  };
+  const segment = p.propertyTypes?.[0] ? typeMap[p.propertyTypes[0]] ?? "viviendas" : "viviendas";
+  const op = p.operation === "compra" ? `venta-${segment}` : `alquiler-${segment}`;
+  const city = slugify(p.city || "madrid");
+  // Zona: idealista usa /barrio/ después de la ciudad (ej. madrid/chamberi/)
+  const zone = p.zones?.[0] ? `${slugify(p.zones[0])}/` : "";
+
   const filters: string[] = [];
   if (p.priceMin) filters.push(`precio-desde_${p.priceMin}`);
   if (p.priceMax) filters.push(`precio-hasta_${p.priceMax}`);
@@ -27,7 +48,7 @@ function buildIdealistaUrl(p: Params): string {
   if (p.listingType === "particular") filters.push("publicado-por_particular");
   if (p.listingType === "agencia") filters.push("publicado-por_agencias");
   const path = filters.length ? `/con-${filters.join(",")}/` : "/";
-  return `https://www.idealista.com/${op}/${slug}${path}`;
+  return `https://www.idealista.com/${op}/${city}/${zone}${path.replace(/^\//, "")}`;
 }
 
 async function isBlocked(page: any): Promise<boolean> {
