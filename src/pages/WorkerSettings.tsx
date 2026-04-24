@@ -23,6 +23,7 @@ import {
   getWorkerConfig, upsertWorkerConfig, getRecentHeartbeats, callProvision,
   isWorkerOnline, type WorkerConfig, type WorkerHeartbeat,
 } from "@/services/worker.service";
+import { pingWorker, type PingResult } from "@/lib/scraper-worker";
 import { WorkerSetupGuide } from "@/components/WorkerSetupGuide";
 import { SupabaseAccessGuide } from "@/components/SupabaseAccessGuide";
 import {
@@ -64,6 +65,10 @@ export default function WorkerSettings() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [config, setConfig] = useState<WorkerConfig>(emptyConfig);
   const [heartbeats, setHeartbeats] = useState<WorkerHeartbeat[]>([]);
+  const [ping, setPing] = useState<PingResult & { loading: boolean }>({
+    ok: false,
+    loading: true,
+  });
 
   useEffect(() => {
     if (role && !isSuperAdmin) navigate("/configuracion", { replace: true });
@@ -81,8 +86,19 @@ export default function WorkerSettings() {
     }
   };
 
+  const refreshPing = async () => {
+    setPing((p) => ({ ...p, loading: true }));
+    const res = await pingWorker();
+    setPing({ ...res, loading: false });
+  };
+
   useEffect(() => {
-    if (isSuperAdmin) refresh();
+    if (isSuperAdmin) {
+      refresh();
+      refreshPing();
+      const id = setInterval(refreshPing, 30_000);
+      return () => clearInterval(id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin]);
 
@@ -140,10 +156,13 @@ export default function WorkerSettings() {
     }
   };
 
-  const online = isWorkerOnline(config);
+  const onlineByHeartbeat = isWorkerOnline(config);
+  const onlineByPing = ping.ok;
+  const online = onlineByHeartbeat || onlineByPing;
   const lastHb = config.last_heartbeat_at
     ? new Date(config.last_heartbeat_at).toLocaleString("es-ES")
     : "Nunca";
+  const liveVersion = ping.version ?? config.last_version;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -169,8 +188,12 @@ export default function WorkerSettings() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                Estado del worker
-                {online ? (
+                <span>Estado del worker</span>
+                {ping.loading && !onlineByHeartbeat ? (
+                  <Badge variant="secondary">
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Comprobando
+                  </Badge>
+                ) : online ? (
                   <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
                     <Wifi className="mr-1 h-3 w-3" /> Online
                   </Badge>
@@ -180,10 +203,15 @@ export default function WorkerSettings() {
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription>Último heartbeat: {lastHb}</CardDescription>
+              <CardDescription>
+                {onlineByPing && !onlineByHeartbeat
+                  ? "Responde a ping vía proxy. Aún sin heartbeats periódicos."
+                  : `Último heartbeat: ${lastHb}`}
+              </CardDescription>
             </div>
             <div className="text-right text-sm text-muted-foreground">
-              {config.last_version && <p>Versión: <span className="font-mono">{config.last_version}</span></p>}
+              {liveVersion && <p>Versión: <span className="font-mono">{liveVersion}</span></p>}
+              {ping.service && <p className="font-mono text-xs">{ping.service}</p>}
             </div>
           </div>
         </CardHeader>
