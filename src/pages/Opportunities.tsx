@@ -183,6 +183,12 @@ export default function Opportunities() {
     }
   }, [results, sortBy]);
 
+  const emptyStateDetail = activeJob?.params?.listingType === "particular"
+    ? "No hay anuncios confirmados como particulares. Los portales devolvieron agencias o profesionales; cambia a Ambos para ampliar la búsqueda."
+    : activeJob?.params?.adAge !== "any"
+      ? "No hay anuncios que cumplan la antigüedad seleccionada. Cambia a Cualquiera para ampliar la búsqueda."
+      : null;
+
   const convertToProperty = async (r: ScraperResult) => {
     try {
       await opportunitiesService.convertToProperty(r);
@@ -389,6 +395,7 @@ export default function Opportunities() {
                 {activeJob && results.length === 0 && !["queued", "running"].includes(activeJob.status) && (
                   <div className="text-center py-16 text-sm text-muted-foreground">
                     <p>No se encontraron resultados para esta búsqueda.</p>
+                    {emptyStateDetail && <p className="mt-2 max-w-md mx-auto">{emptyStateDetail}</p>}
                     {activeJob.error && <p className="mt-2 text-destructive">{activeJob.error}</p>}
                   </div>
                 )}
