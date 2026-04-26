@@ -100,6 +100,7 @@ type FormValues = z.infer<typeof FormSchema>;
 export default function Opportunities() {
   const { user, profile } = useAuth();
   const { tenant } = useApp();
+  const [activeTab, setActiveTab] = useState<"search" | "saved" | "history">("search");
   const [showTerms, setShowTerms] = useState(false);
   const [propertyTypes, setPropertyTypes] = useState<string[]>(["piso"]);
   const [features, setFeatures] = useState<string[]>([]);
@@ -115,6 +116,7 @@ export default function Opportunities() {
   const [sortBy, setSortBy] = useState<"ai_score" | "recent" | "price_asc" | "price_desc" | "ppm2">("ai_score");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [loadingHistoryJobId, setLoadingHistoryJobId] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -183,6 +185,7 @@ export default function Opportunities() {
       const job = await opportunitiesService.getJob(jobId);
       setActiveJob(job);
       setResults([]);
+      setActiveTab("search");
       toast.success("Búsqueda iniciada", { description: "Los resultados aparecerán en streaming." });
     } catch (e) {
       toast.error("Error al iniciar la búsqueda", { description: (e as Error).message });
@@ -226,6 +229,7 @@ export default function Opportunities() {
     const job = await opportunitiesService.getJob(jobId);
     setActiveJob(job);
     setResults([]);
+    setActiveTab("search");
     toast.success(`Re-ejecutando "${s.name}"`);
   };
 
@@ -285,6 +289,25 @@ export default function Opportunities() {
     }
   };
 
+  const viewHistoricalJob = async (job: ScraperJob) => {
+    setLoadingHistoryJobId(job.id);
+    setSelectedIds([]);
+    setActiveJob(job);
+    setResults([]);
+    setActiveTab("search");
+    try {
+      const loadedResults = await opportunitiesService.listResults(job.id);
+      setResults(loadedResults);
+      toast.success("Búsqueda recuperada", {
+        description: `${loadedResults.length} resultados cargados.`,
+      });
+    } catch (e) {
+      toast.error("No se pudo recuperar la búsqueda", { description: (e as Error).message });
+    } finally {
+      setLoadingHistoryJobId(null);
+    }
+  };
+
   const submitLead = async () => {
     if (!convertOpen || !leadName || !leadContact) return;
     try {
@@ -303,7 +326,7 @@ export default function Opportunities() {
         </p>
       </div>
 
-      <Tabs defaultValue="search">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
         <TabsList>
           <TabsTrigger value="search">Búsqueda</TabsTrigger>
           <TabsTrigger value="saved">Guardadas ({saved.length})</TabsTrigger>
@@ -677,10 +700,10 @@ export default function Opportunities() {
                       <div className="text-xs text-muted-foreground flex items-center gap-3">
                         <span>{j.results_count} resultados</span>
                         <span>{new Date(j.created_at).toLocaleString("es-ES")}</span>
-                        <Button size="sm" variant="ghost" onClick={async () => {
-                          setActiveJob(j);
-                          setResults(await opportunitiesService.listResults(j.id));
-                        }}>Ver</Button>
+                        <Button size="sm" variant="ghost" onClick={() => viewHistoricalJob(j)} disabled={loadingHistoryJobId === j.id}>
+                          {loadingHistoryJobId === j.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                          Ver
+                        </Button>
                       </div>
                     </div>
                   ))}
