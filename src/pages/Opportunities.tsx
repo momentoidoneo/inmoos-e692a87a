@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X } from "lucide-react";
+import { AlertTriangle, Brain, Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   opportunitiesService,
@@ -31,6 +31,50 @@ const PORTALS: { id: Portal; label: string }[] = [
 
 const PROPERTY_TYPES = ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "garaje", "terreno"];
 const FEATURES = ["ascensor", "terraza", "parking", "piscina", "exterior", "amueblado", "mascotas"];
+
+type OpportunityAi = {
+  score?: number;
+  priority?: "alta" | "media" | "baja";
+  private_owner_confidence?: number;
+  private_owner_status?: "confirmed" | "candidate" | "rejected" | "unknown";
+  summary?: string;
+  reason?: string;
+  risks?: string[];
+  next_action?: string;
+  suggested_message?: string;
+  signals?: string[];
+  price_per_m2?: number | null;
+  source?: string;
+  model?: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function opportunityAi(result: ScraperResult): OpportunityAi | null {
+  const raw = asRecord(result.raw);
+  const ai = asRecord(raw?._opportunityAi);
+  return ai as OpportunityAi | null;
+}
+
+function aiScore(result: ScraperResult): number {
+  const score = opportunityAi(result)?.score;
+  return typeof score === "number" && Number.isFinite(score) ? score : 0;
+}
+
+function priorityClass(priority: OpportunityAi["priority"]): string {
+  if (priority === "alta") return "border-red-200 bg-red-50 text-red-700";
+  if (priority === "media") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function privateStatusLabel(status: OpportunityAi["private_owner_status"]): string {
+  if (status === "confirmed") return "Particular confirmado";
+  if (status === "candidate") return "Posible particular";
+  if (status === "rejected") return "Profesional/agencia";
+  return "Sin confirmar";
+}
 
 const FormSchema = z.object({
   operation: z.enum(["compra", "alquiler", "alquiler_temporal"]),
@@ -62,7 +106,7 @@ export default function Opportunities() {
   const [convertOpen, setConvertOpen] = useState<ScraperResult | null>(null);
   const [leadName, setLeadName] = useState("");
   const [leadContact, setLeadContact] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "price_asc" | "price_desc" | "ppm2">("recent");
+  const [sortBy, setSortBy] = useState<"ai_score" | "recent" | "price_asc" | "price_desc" | "ppm2">("ai_score");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -176,12 +220,20 @@ export default function Opportunities() {
   const sorted = useMemo(() => {
     const arr = [...results];
     switch (sortBy) {
+      case "ai_score": return arr.sort((a, b) => aiScore(b) - aiScore(a));
       case "price_asc": return arr.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
       case "price_desc": return arr.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
       case "ppm2": return arr.sort((a, b) => ((a.price ?? 0) / (a.surface_m2 || 1)) - ((b.price ?? 0) / (b.surface_m2 || 1)));
       default: return arr;
     }
   }, [results, sortBy]);
+
+  const aiStats = useMemo(() => {
+    const scored = results.map((r) => opportunityAi(r)).filter(Boolean) as OpportunityAi[];
+    const high = scored.filter((ai) => ai.priority === "alta").length;
+    const privateConfirmed = scored.filter((ai) => ai.private_owner_status === "confirmed").length;
+    return { scored: scored.length, high, privateConfirmed };
+  }, [results]);
 
   const emptyStateDetail = activeJob?.params?.listingType === "particular"
     ? "No hay anuncios confirmados como particulares. Los portales devolvieron agencias o profesionales; cambia a Ambos para ampliar la búsqueda."
@@ -360,6 +412,13 @@ export default function Opportunities() {
                         </Badge>
                       ))}
                       <Badge variant="outline">Total: {results.length}</Badge>
+                      {aiStats.scored > 0 && (
+                        <>
+                          <Badge variant="outline">IA: {aiStats.scored}</Badge>
+                          <Badge variant="secondary">Alta: {aiStats.high}</Badge>
+                          <Badge variant="secondary">Particulares: {aiStats.privateConfirmed}</Badge>
+                        </>
+                      )}
                     </CardDescription>
                   )}
                 </div>
@@ -371,6 +430,7 @@ export default function Opportunities() {
                     <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
                       <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="ai_score">Score IA</SelectItem>
                         <SelectItem value="recent">Más recientes</SelectItem>
                         <SelectItem value="price_asc">Precio ↑</SelectItem>
                         <SelectItem value="price_desc">Precio ↓</SelectItem>
@@ -400,47 +460,76 @@ export default function Opportunities() {
                   </div>
                 )}
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {sorted.map((r) => (
-                    <Card key={r.id} className="overflow-hidden">
-                      {r.images?.[0] && (
-                        <div className="aspect-video bg-muted overflow-hidden">
-                          <img src={r.images[0]} alt={r.title ?? ""} className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      )}
-                      <CardContent className="p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-semibold text-sm line-clamp-2">{r.title}</p>
-                          <Badge variant="outline" className="capitalize shrink-0">{r.portal}</Badge>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <p className="text-lg font-bold">{r.price ? `${r.price.toLocaleString("es-ES")}€` : "—"}</p>
-                          {r.surface_m2 && r.price && (
-                            <p className="text-xs text-muted-foreground">{Math.round(r.price / r.surface_m2)}€/m²</p>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                          {r.surface_m2 && <span>{r.surface_m2} m²</span>}
-                          {r.rooms != null && <span>{r.rooms} habs</span>}
-                          {r.bathrooms != null && <span>{r.bathrooms} baños</span>}
-                          {r.zone && <span>· {r.zone}</span>}
-                        </div>
-                        <div className="flex items-center justify-between gap-1">
-                          {r.listing_type && (
-                            <Badge variant={r.listing_type === "particular" ? "secondary" : "default"} className="text-[10px]">
-                              {r.listing_type}
-                            </Badge>
-                          )}
-                          <div className="flex gap-1">
-                            {r.url && (
-                              <Button size="icon" variant="ghost" asChild><a href={r.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-                            )}
-                            <Button size="icon" variant="ghost" onClick={() => convertToProperty(r)} title="Convertir en inmueble"><Building2 className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => setConvertOpen(r)} title="Crear lead"><UserPlus className="h-4 w-4" /></Button>
+                  {sorted.map((r) => {
+                    const ai = opportunityAi(r);
+                    return (
+                      <Card key={r.id} className="overflow-hidden">
+                        {r.images?.[0] && (
+                          <div className="aspect-video bg-muted overflow-hidden">
+                            <img src={r.images[0]} alt={r.title ?? ""} className="w-full h-full object-cover" loading="lazy" />
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        )}
+                        <CardContent className="p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-semibold text-sm line-clamp-2">{r.title}</p>
+                            <Badge variant="outline" className="capitalize shrink-0">{r.portal}</Badge>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <p className="text-lg font-bold">{r.price ? `${r.price.toLocaleString("es-ES")}€` : "—"}</p>
+                            {r.surface_m2 && r.price && (
+                              <p className="text-xs text-muted-foreground">{Math.round(r.price / r.surface_m2)}€/m²</p>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                            {r.surface_m2 && <span>{r.surface_m2} m²</span>}
+                            {r.rooms != null && <span>{r.rooms} habs</span>}
+                            {r.bathrooms != null && <span>{r.bathrooms} baños</span>}
+                            {r.zone && <span>· {r.zone}</span>}
+                          </div>
+                          {ai && (
+                            <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <Badge variant="outline" className={`gap-1 ${priorityClass(ai.priority)}`}>
+                                  <Brain className="h-3 w-3" />
+                                  IA {Math.round(ai.score ?? 0)}
+                                </Badge>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {privateStatusLabel(ai.private_owner_status)}
+                                  {typeof ai.private_owner_confidence === "number" ? ` · ${Math.round(ai.private_owner_confidence * 100)}%` : ""}
+                                </span>
+                              </div>
+                              {ai.summary && <p className="text-xs font-medium line-clamp-2">{ai.summary}</p>}
+                              {ai.reason && <p className="text-[11px] text-muted-foreground line-clamp-2">{ai.reason}</p>}
+                              {ai.risks?.length ? (
+                                <p className="text-[11px] text-amber-700 flex gap-1">
+                                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                                  <span className="line-clamp-2">{ai.risks.slice(0, 2).join(" · ")}</span>
+                                </p>
+                              ) : null}
+                              {ai.next_action && <p className="text-[11px] text-muted-foreground line-clamp-2">Acción: {ai.next_action}</p>}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex flex-wrap gap-1">
+                              {r.listing_type && (
+                                <Badge variant={r.listing_type === "particular" ? "secondary" : "default"} className="text-[10px]">
+                                  {r.listing_type}
+                                </Badge>
+                              )}
+                              {ai?.priority === "alta" && <Badge variant="destructive" className="text-[10px]">prioridad alta</Badge>}
+                            </div>
+                            <div className="flex gap-1">
+                              {r.url && (
+                                <Button size="icon" variant="ghost" asChild><a href={r.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
+                              )}
+                              <Button size="icon" variant="ghost" onClick={() => convertToProperty(r)} title="Convertir en inmueble"><Building2 className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" onClick={() => setConvertOpen(r)} title="Crear lead"><UserPlus className="h-4 w-4" /></Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -534,6 +623,12 @@ export default function Opportunities() {
             <DialogDescription>El lead quedará vinculado a este anuncio.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {convertOpen && opportunityAi(convertOpen)?.suggested_message && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <p className="font-medium mb-1">Mensaje sugerido</p>
+                <p className="text-muted-foreground">{opportunityAi(convertOpen)?.suggested_message}</p>
+              </div>
+            )}
             <div><Label>Nombre del contacto</Label><Input value={leadName} onChange={(e) => setLeadName(e.target.value)} /></div>
             <div><Label>Email o teléfono</Label><Input value={leadContact} onChange={(e) => setLeadContact(e.target.value)} /></div>
           </div>

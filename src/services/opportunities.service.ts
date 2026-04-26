@@ -70,6 +70,7 @@ export interface ScraperResult {
   images: string[];
   description: string | null;
   published_at: string | null;
+  raw: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -186,6 +187,17 @@ export const opportunitiesService = {
   async convertToLead(r: ScraperResult, name: string, contact: string): Promise<string> {
     const tid = tenantId();
     const isEmail = contact.includes("@");
+    const raw = r.raw && typeof r.raw === "object" && !Array.isArray(r.raw) ? r.raw : {};
+    const ai = raw._opportunityAi && typeof raw._opportunityAi === "object" && !Array.isArray(raw._opportunityAi)
+      ? raw._opportunityAi as Record<string, unknown>
+      : {};
+    const notes = [
+      `Lead generado desde anuncio: ${r.url ?? r.title ?? ""}`,
+      typeof ai.summary === "string" && ai.summary ? `Resumen IA: ${ai.summary}` : null,
+      typeof ai.reason === "string" && ai.reason ? `Motivo IA: ${ai.reason}` : null,
+      typeof ai.next_action === "string" && ai.next_action ? `Siguiente acción: ${ai.next_action}` : null,
+      typeof ai.suggested_message === "string" && ai.suggested_message ? `Mensaje sugerido: ${ai.suggested_message}` : null,
+    ].filter(Boolean).join("\n\n");
     const { data, error } = await supabase.from("leads").insert({
       tenant_id: tid,
       name,
@@ -193,9 +205,15 @@ export const opportunitiesService = {
       phone: isEmail ? null : contact,
       status: "nuevo",
       source: r.portal,
-      tags: ["oportunidad", r.portal],
-      interests: { operation: r.operation, propertyTypes: [r.property_type], zones: r.zone ? [r.zone] : [], features: [] },
-      notes: `Lead generado desde anuncio: ${r.url ?? r.title ?? ""}`,
+      tags: ["oportunidad", r.portal, ai.priority === "alta" ? "ia-alta" : null, r.listing_type ?? null].filter(Boolean),
+      interests: {
+        operation: r.operation,
+        propertyTypes: [r.property_type],
+        zones: r.zone ? [r.zone] : [],
+        features: [],
+        opportunityAi: ai,
+      },
+      notes,
     }).select("id").single();
     if (error) throw error;
     return data.id;
