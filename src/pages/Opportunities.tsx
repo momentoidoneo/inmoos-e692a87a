@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Brain, Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X } from "lucide-react";
+import { AlertTriangle, Brain, CheckSquare, Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   opportunitiesService,
@@ -44,6 +44,7 @@ type OpportunityAi = {
   suggested_message?: string;
   signals?: string[];
   price_per_m2?: number | null;
+  duplicate_key?: string | null;
   source?: string;
   model?: string | null;
 };
@@ -74,6 +75,11 @@ function privateStatusLabel(status: OpportunityAi["private_owner_status"]): stri
   if (status === "candidate") return "Posible particular";
   if (status === "rejected") return "Profesional/agencia";
   return "Sin confirmar";
+}
+
+function formatPricePerM2(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${Math.round(value).toLocaleString("es-ES")}€/m²`;
 }
 
 const FormSchema = z.object({
@@ -107,6 +113,8 @@ export default function Opportunities() {
   const [leadName, setLeadName] = useState("");
   const [leadContact, setLeadContact] = useState("");
   const [sortBy, setSortBy] = useState<"ai_score" | "recent" | "price_asc" | "price_desc" | "ppm2">("ai_score");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -146,6 +154,10 @@ export default function Opportunities() {
     )));
     return () => { offJob(); offRes(); };
   }, [activeJob?.id]);
+
+  useEffect(() => {
+    setSelectedIds((ids) => ids.filter((id) => results.some((r) => r.id === id)));
+  }, [results]);
 
   const submitSearch = async (values: FormValues) => {
     if (selectedPortals.length === 0) { toast.error("Selecciona al menos un portal"); return; }
@@ -235,6 +247,15 @@ export default function Opportunities() {
     return { scored: scored.length, high, privateConfirmed };
   }, [results]);
 
+  const selectedResults = useMemo(
+    () => results.filter((r) => selectedIds.includes(r.id)),
+    [results, selectedIds],
+  );
+
+  const setSelectedFrom = (items: ScraperResult[]) => {
+    setSelectedIds(Array.from(new Set(items.map((r) => r.id))));
+  };
+
   const emptyStateDetail = activeJob?.params?.listingType === "particular"
     ? "No hay anuncios confirmados como particulares. Los portales devolvieron agencias o profesionales; cambia a Ambos para ampliar la búsqueda."
     : activeJob?.params?.adAge !== "any"
@@ -246,6 +267,22 @@ export default function Opportunities() {
       await opportunitiesService.convertToProperty(r);
       toast.success("Inmueble creado");
     } catch (e) { toast.error("Error", { description: (e as Error).message }); }
+  };
+
+  const saveSelectedAsProperties = async () => {
+    if (!selectedResults.length) return;
+    setBulkSaving(true);
+    try {
+      const { created, skipped } = await opportunitiesService.convertManyToProperties(selectedResults);
+      setSelectedIds([]);
+      toast.success(`${created} oportunidades guardadas como inmuebles`, {
+        description: skipped ? `${skipped} ya estaban guardadas o duplicadas.` : undefined,
+      });
+    } catch (e) {
+      toast.error("No se pudieron guardar", { description: (e as Error).message });
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const submitLead = async () => {
@@ -459,11 +496,35 @@ export default function Opportunities() {
                     {activeJob.error && <p className="mt-2 text-destructive">{activeJob.error}</p>}
                   </div>
                 )}
+                {results.length > 0 && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{selectedResults.length} seleccionadas</Badge>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedFrom(sorted)}>
+                        <CheckSquare className="h-3.5 w-3.5 mr-1" />Seleccionar visibles
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedFrom(results.filter((r) => opportunityAi(r)?.priority === "alta"))}>
+                        Alta prioridad
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedFrom(results.filter((r) => opportunityAi(r)?.private_owner_status === "confirmed" || r.listing_type === "particular"))}>
+                        Particulares
+                      </Button>
+                      {selectedResults.length > 0 && (
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Limpiar</Button>
+                      )}
+                    </div>
+                    <Button size="sm" onClick={saveSelectedAsProperties} disabled={!selectedResults.length || bulkSaving}>
+                      {bulkSaving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Building2 className="h-3.5 w-3.5 mr-1" />}
+                      Guardar como inmuebles
+                    </Button>
+                  </div>
+                )}
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {sorted.map((r) => {
                     const ai = opportunityAi(r);
+                    const selected = selectedIds.includes(r.id);
                     return (
-                      <Card key={r.id} className="overflow-hidden">
+                      <Card key={r.id} className={`overflow-hidden ${selected ? "ring-2 ring-primary" : ""}`}>
                         {r.images?.[0] && (
                           <div className="aspect-video bg-muted overflow-hidden">
                             <img src={r.images[0]} alt={r.title ?? ""} className="w-full h-full object-cover" loading="lazy" />
@@ -471,7 +532,17 @@ export default function Opportunities() {
                         )}
                         <CardContent className="p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="font-semibold text-sm line-clamp-2">{r.title}</p>
+                            <div className="flex items-start gap-2 min-w-0">
+                              <Checkbox
+                                checked={selected}
+                                onCheckedChange={(checked) => setSelectedIds((ids) => checked
+                                  ? Array.from(new Set([...ids, r.id]))
+                                  : ids.filter((id) => id !== r.id))}
+                                aria-label="Seleccionar oportunidad"
+                                className="mt-0.5"
+                              />
+                              <p className="font-semibold text-sm line-clamp-2">{r.title}</p>
+                            </div>
                             <Badge variant="outline" className="capitalize shrink-0">{r.portal}</Badge>
                           </div>
                           <div className="flex items-baseline gap-2">
@@ -507,6 +578,28 @@ export default function Opportunities() {
                                 </p>
                               ) : null}
                               {ai.next_action && <p className="text-[11px] text-muted-foreground line-clamp-2">Acción: {ai.next_action}</p>}
+                              {ai.suggested_message && <p className="text-[11px] text-muted-foreground line-clamp-2">Mensaje: {ai.suggested_message}</p>}
+                              {(ai.signals?.length || formatPricePerM2(ai.price_per_m2)) && (
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {formatPricePerM2(ai.price_per_m2) && (
+                                    <Badge variant="outline" className="text-[10px] font-normal">
+                                      IA {formatPricePerM2(ai.price_per_m2)}
+                                    </Badge>
+                                  )}
+                                  {ai.signals?.slice(0, 3).map((signal) => (
+                                    <Badge key={signal} variant="secondary" className="text-[10px] font-normal">
+                                      {signal}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              {(ai.duplicate_key || ai.source || ai.model) && (
+                                <p className="text-[10px] text-muted-foreground/80 truncate">
+                                  {ai.duplicate_key ? `Duplicado: ${ai.duplicate_key}` : "IA"}
+                                  {ai.source ? ` · ${ai.source}` : ""}
+                                  {ai.model ? ` · ${ai.model}` : ""}
+                                </p>
+                              )}
                             </div>
                           )}
                           <div className="flex items-center justify-between gap-1">

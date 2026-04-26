@@ -24,30 +24,42 @@ type DbProperty = {
   features: Record<string, unknown> | null;
   images: string[] | null;
   agent_id: string | null;
+  source_url: string | null;
+  source_portal: string | null;
   created_at: string;
 };
 
-const fromDb = (r: DbProperty): Property => ({
-  id: r.id,
-  tenantId: r.tenant_id,
-  reference: r.reference,
-  title: r.title,
-  type: r.property_type as PropertyType,
-  operation: r.operation as OperationType,
-  status: r.status as PropertyStatus,
-  price: r.price ?? 0,
-  address: r.address ?? "",
-  zone: r.zone ?? "",
-  city: r.city ?? "",
-  surface: r.surface_m2 ?? 0,
-  bedrooms: r.rooms ?? 0,
-  bathrooms: r.bathrooms ?? 0,
-  description: r.description ?? "",
-  features: ((r.features as { items?: string[] })?.items) ?? [],
-  imageUrl: r.images?.[0],
-  agentId: r.agent_id ?? "",
-  createdAt: r.created_at,
-});
+const fromDb = (r: DbProperty): Property => {
+  const features = (r.features ?? {}) as { items?: string[]; opportunityAi?: unknown };
+  const opportunityAi = features.opportunityAi && typeof features.opportunityAi === "object" && !Array.isArray(features.opportunityAi)
+    ? features.opportunityAi as Record<string, unknown>
+    : undefined;
+
+  return {
+    id: r.id,
+    tenantId: r.tenant_id,
+    reference: r.reference,
+    title: r.title,
+    type: r.property_type as PropertyType,
+    operation: r.operation as OperationType,
+    status: r.status as PropertyStatus,
+    price: r.price ?? 0,
+    address: r.address ?? "",
+    zone: r.zone ?? "",
+    city: r.city ?? "",
+    surface: r.surface_m2 ?? 0,
+    bedrooms: r.rooms ?? 0,
+    bathrooms: r.bathrooms ?? 0,
+    description: r.description ?? "",
+    features: features.items ?? [],
+    imageUrl: r.images?.[0],
+    sourceUrl: r.source_url ?? undefined,
+    sourcePortal: r.source_portal ?? undefined,
+    opportunityAi,
+    agentId: r.agent_id ?? "",
+    createdAt: r.created_at,
+  };
+};
 
 const toDb = (p: Partial<Property>) => ({
   reference: p.reference,

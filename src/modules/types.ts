@@ -112,6 +112,9 @@ export interface Property {
   description: string;
   features: string[];
   imageUrl?: string;
+  sourceUrl?: string;
+  sourcePortal?: string;
+  opportunityAi?: Record<string, unknown>;
   agentId: ID;
   createdAt: string;
 }

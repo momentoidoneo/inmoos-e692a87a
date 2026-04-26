@@ -84,6 +84,46 @@ export interface SavedSearch {
   created_at: string;
 }
 
+function resultAi(r: ScraperResult): Record<string, unknown> {
+  const raw = r.raw && typeof r.raw === "object" && !Array.isArray(r.raw) ? r.raw : {};
+  return raw._opportunityAi && typeof raw._opportunityAi === "object" && !Array.isArray(raw._opportunityAi)
+    ? raw._opportunityAi as Record<string, unknown>
+    : {};
+}
+
+function propertyPayloadFromResult(r: ScraperResult, tenantId: string, agentId: string) {
+  const ref = `EXT-${r.portal.slice(0, 3).toUpperCase()}-${r.external_id.slice(0, 8)}`;
+  const ai = resultAi(r);
+  return {
+    tenant_id: tenantId,
+    reference: ref,
+    title: r.title ?? "Sin título",
+    description: r.description ?? "",
+    address: r.address ?? "",
+    zone: r.zone ?? "",
+    city: r.city ?? "",
+    operation: r.operation === "alquiler" || r.operation === "alquiler_temporal" ? r.operation : "compra",
+    property_type: r.property_type ?? "piso",
+    status: "disponible",
+    price: r.price,
+    surface_m2: r.surface_m2,
+    rooms: r.rooms,
+    bathrooms: r.bathrooms,
+    images: r.images,
+    source_url: r.url,
+    source_portal: r.portal,
+    agent_id: agentId,
+    features: {
+      items: [],
+      opportunityAi: ai,
+      scraperResultId: r.id,
+      portal: r.portal,
+      externalId: r.external_id,
+      listingType: r.listing_type,
+    },
+  };
+}
+
 export const opportunitiesService = {
   async createJob(params: ScraperParams, portals: Portal[], tenantIdOverride?: string): Promise<{ jobId: string }> {
     const { data: sess } = await supabase.auth.getSession();
@@ -158,39 +198,52 @@ export const opportunitiesService = {
 
   async convertToProperty(r: ScraperResult): Promise<string> {
     const tid = tenantId();
-    const ref = `EXT-${r.portal.slice(0, 3).toUpperCase()}-${r.external_id.slice(0, 8)}`;
     const { data: u } = await supabase.auth.getUser();
-    const { data, error } = await supabase.from("properties").insert({
-      tenant_id: tid,
-      reference: ref,
-      title: r.title ?? "Sin título",
-      description: r.description ?? "",
-      address: r.address ?? "",
-      zone: r.zone ?? "",
-      city: r.city ?? "",
-      operation: r.operation ?? "venta",
-      property_type: r.property_type ?? "piso",
-      status: "disponible",
-      price: r.price,
-      surface_m2: r.surface_m2,
-      rooms: r.rooms,
-      bathrooms: r.bathrooms,
-      images: r.images,
-      source_url: r.url,
-      source_portal: r.portal,
-      agent_id: u.user!.id,
-    }).select("id").single();
+    const { data, error } = await supabase.from("properties").insert(propertyPayloadFromResult(r, tid, u.user!.id)).select("id").single();
     if (error) throw error;
     return data.id;
+  },
+
+  async convertManyToProperties(results: ScraperResult[]): Promise<{ created: number; skipped: number }> {
+    const tid = tenantId();
+    if (!tid || results.length === 0) return { created: 0, skipped: 0 };
+    const { data: u } = await supabase.auth.getUser();
+    const urls = results.map((r) => r.url).filter((url): url is string => Boolean(url));
+    const existingUrls = new Set<string>();
+
+    if (urls.length) {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("source_url")
+        .eq("tenant_id", tid)
+        .in("source_url", urls);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        if (row.source_url) existingUrls.add(row.source_url);
+      }
+    }
+
+    const seen = new Set<string>();
+    const rows = results
+      .filter((r) => {
+        const key = r.url || `${r.portal}:${r.external_id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return !r.url || !existingUrls.has(r.url);
+      })
+      .map((r) => propertyPayloadFromResult(r, tid, u.user!.id));
+
+    if (!rows.length) return { created: 0, skipped: results.length };
+    const { data, error } = await supabase.from("properties").insert(rows).select("id");
+    if (error) throw error;
+    const created = data?.length ?? rows.length;
+    return { created, skipped: results.length - created };
   },
 
   async convertToLead(r: ScraperResult, name: string, contact: string): Promise<string> {
     const tid = tenantId();
     const isEmail = contact.includes("@");
-    const raw = r.raw && typeof r.raw === "object" && !Array.isArray(r.raw) ? r.raw : {};
-    const ai = raw._opportunityAi && typeof raw._opportunityAi === "object" && !Array.isArray(raw._opportunityAi)
-      ? raw._opportunityAi as Record<string, unknown>
-      : {};
+    const ai = resultAi(r);
     const notes = [
       `Lead generado desde anuncio: ${r.url ?? r.title ?? ""}`,
       typeof ai.summary === "string" && ai.summary ? `Resumen IA: ${ai.summary}` : null,
