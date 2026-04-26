@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Zap, Clock, Send, ListChecks, Users, ArrowRight, Moon, FileWarning, Loader2, AlertCircle, Play } from "lucide-react";
+import { Plus, Zap, Clock, Send, ListChecks, Users, ArrowRight, Moon, FileWarning, Loader2, AlertCircle, Play, CheckCircle2 } from "lucide-react";
 import { automationTriggerLabel } from "@/lib/labels";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import type { Lead } from "@/modules/types";
@@ -55,6 +55,87 @@ const defaultForm = {
   enabled: true,
 };
 
+type RecommendedAutomation = {
+  name: string;
+  description: string;
+  trigger: AutomationTrigger;
+  conditions?: AutomationRule["conditions"];
+  steps: AutomationRule["steps"];
+};
+
+const recommendedAutomations: RecommendedAutomation[] = [
+  {
+    name: "Lead nuevo: contacto inmediato",
+    description: "Registra mensaje de bienvenida, avisa al agente y crea una tarea de llamada en 1 hora.",
+    trigger: "lead_created",
+    steps: [
+      { id: "welcome-message", kind: "send_template", config: { channel: "whatsapp", templateId: "lead_welcome" } },
+      { id: "notify-agent", kind: "notify_agent", config: { message: "Nuevo lead pendiente de primer contacto" } },
+      { id: "first-call", kind: "create_task", config: { type: "llamada", title: "Contactar lead nuevo", priority: "alta", dueInHours: 1 } },
+    ],
+  },
+  {
+    name: "Lead de portal: llamar en 30 minutos",
+    description: "Prioriza leads de Idealista, Fotocasa y Habitaclia para capturar intención caliente antes que la competencia.",
+    trigger: "lead_created",
+    conditions: [{ field: "source", op: "in", value: "idealista,fotocasa,habitaclia" }],
+    steps: [
+      { id: "portal-call", kind: "create_task", config: { type: "llamada", title: "Llamar lead de portal", priority: "alta", dueInHours: 1 } },
+      { id: "portal-notify", kind: "notify_agent", config: { message: "Lead de portal: prioridad de contacto inmediato" } },
+    ],
+  },
+  {
+    name: "Sin respuesta 24h: segundo intento",
+    description: "Registra mensaje de seguimiento y crea una tarea corta para reintentar contacto.",
+    trigger: "lead_no_response_24h",
+    conditions: [{ field: "status", op: "=", value: "contactado" }],
+    steps: [
+      { id: "second-message", kind: "send_template", config: { channel: "whatsapp", templateId: "followup_24h" } },
+      { id: "second-task", kind: "create_task", config: { type: "seguimiento", title: "Segundo intento de contacto", priority: "alta", dueInHours: 4 } },
+    ],
+  },
+  {
+    name: "Sin respuesta 72h: escalar seguimiento",
+    description: "Pasa el lead a seguimiento, avisa al agente y crea una llamada prioritaria.",
+    trigger: "lead_no_response_72h",
+    conditions: [{ field: "status", op: "=", value: "contactado" }],
+    steps: [
+      { id: "move-followup", kind: "change_status", config: { to: "seguimiento" } },
+      { id: "escalation-notify", kind: "notify_agent", config: { message: "Lead sin respuesta 72h: decidir si insistir o descartar" } },
+      { id: "escalation-call", kind: "create_task", config: { type: "llamada", title: "Escalar lead sin respuesta", priority: "alta", dueInHours: 2 } },
+    ],
+  },
+  {
+    name: "Post-visita: pedir feedback",
+    description: "Cuando una visita se marca como realizada, registra mensaje y crea tarea de feedback.",
+    trigger: "visit_completed",
+    steps: [
+      { id: "post-visit-message", kind: "send_template", config: { channel: "whatsapp", templateId: "post_visit_feedback" } },
+      { id: "post-visit-task", kind: "create_task", config: { type: "seguimiento", title: "Recoger feedback de visita", priority: "media", dueInHours: 24 } },
+    ],
+  },
+  {
+    name: "Lead dormido 15d: reactivación",
+    description: "Reabre leads parados con mensaje, estado de seguimiento y tarea comercial.",
+    trigger: "lead_dormant_15d",
+    conditions: [{ field: "status", op: "!=", value: "perdido" }],
+    steps: [
+      { id: "reactivation-message", kind: "send_template", config: { channel: "email", templateId: "reactivation_15d" } },
+      { id: "reactivation-status", kind: "change_status", config: { to: "seguimiento" } },
+      { id: "reactivation-task", kind: "create_task", config: { type: "seguimiento", title: "Reactivar lead dormido", priority: "media", dueInHours: 48 } },
+    ],
+  },
+  {
+    name: "Documentación pendiente: recordatorio",
+    description: "Para leads etiquetados con documentación pendiente, registra aviso y crea tarea de comprobación.",
+    trigger: "document_pending",
+    steps: [
+      { id: "docs-message", kind: "send_template", config: { channel: "email", templateId: "documents_pending" } },
+      { id: "docs-task", kind: "create_task", config: { type: "documentacion", title: "Revisar documentación pendiente", priority: "media", dueInHours: 72 } },
+    ],
+  },
+];
+
 function stepsForAction(action: RuleAction): AutomationRule["steps"] {
   if (action === "notify_agent") {
     return [{ id: `step-${Date.now()}-notify`, kind: "notify_agent", config: {} }];
@@ -88,6 +169,7 @@ export default function Automations() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runningDue, setRunningDue] = useState(false);
+  const [installingRecommendation, setInstallingRecommendation] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
 
@@ -150,6 +232,54 @@ export default function Automations() {
     }
   };
 
+  const createRecommendedRule = async (automation: RecommendedAutomation) => {
+    setInstallingRecommendation(automation.name);
+    try {
+      await services.automations.upsert({
+        name: automation.name,
+        description: automation.description,
+        trigger: automation.trigger,
+        conditions: automation.conditions ?? [],
+        steps: automation.steps,
+        enabled: true,
+      });
+      await loadAutomations();
+      toast.success("Automatización añadida", { description: automation.name });
+    } catch (e) {
+      toast.error("No se pudo añadir la automatización", { description: (e as Error).message });
+    } finally {
+      setInstallingRecommendation(null);
+    }
+  };
+
+  const installRecommendedRules = async () => {
+    const existing = new Set(rules.map((rule) => rule.name.toLowerCase()));
+    const pending = recommendedAutomations.filter((automation) => !existing.has(automation.name.toLowerCase()));
+    if (pending.length === 0) {
+      toast.message("Ya están instaladas");
+      return;
+    }
+    setInstallingRecommendation("all");
+    try {
+      for (const automation of pending) {
+        await services.automations.upsert({
+          name: automation.name,
+          description: automation.description,
+          trigger: automation.trigger,
+          conditions: automation.conditions ?? [],
+          steps: automation.steps,
+          enabled: true,
+        });
+      }
+      await loadAutomations();
+      toast.success(`${pending.length} automatizaciones añadidas`);
+    } catch (e) {
+      toast.error("No se pudieron instalar todas las automatizaciones", { description: (e as Error).message });
+    } finally {
+      setInstallingRecommendation(null);
+    }
+  };
+
   const runDueAutomations = async () => {
     setRunningDue(true);
     try {
@@ -180,6 +310,8 @@ export default function Automations() {
   }).slice(0, 5);
   const dormant = queueLeads.filter((l) => now - new Date(l.lastActivityAt).getTime() > 15 * 86400000).slice(0, 5);
   const postVisit = queueLeads.filter((l) => l.status === "visita_realizada").slice(0, 5);
+  const installedRecommendationNames = new Set(rules.map((rule) => rule.name.toLowerCase()));
+  const pendingRecommendations = recommendedAutomations.filter((automation) => !installedRecommendationNames.has(automation.name.toLowerCase()));
 
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
@@ -205,6 +337,55 @@ export default function Automations() {
         </TabsList>
 
         <TabsContent value="reglas" className="space-y-3">
+          {!loading && (
+            <section className="rounded-md border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Automatizaciones recomendadas</p>
+                  <p className="text-xs text-muted-foreground">{pendingRecommendations.length} pendientes de instalar</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={installRecommendedRules}
+                  disabled={installingRecommendation !== null || pendingRecommendations.length === 0}
+                >
+                  {installingRecommendation === "all" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                  Instalar recomendadas
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                {recommendedAutomations.map((automation) => {
+                  const installed = installedRecommendationNames.has(automation.name.toLowerCase());
+                  return (
+                    <div key={automation.name} className="rounded-md border bg-background p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{automation.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{automation.description}</p>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <Badge variant="outline">{automationTriggerLabel[automation.trigger]}</Badge>
+                            <Badge variant="secondary">{automation.steps.length} acciones</Badge>
+                            {automation.conditions?.length ? <Badge variant="outline">Con condiciones</Badge> : null}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={installed ? "ghost" : "outline"}
+                          onClick={() => createRecommendedRule(automation)}
+                          disabled={installed || installingRecommendation !== null}
+                        >
+                          {installingRecommendation === automation.name ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                          {installed ? "Instalada" : "Añadir"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {loading && (
             <Card>
               <CardContent className="p-8 text-center text-sm text-muted-foreground">
