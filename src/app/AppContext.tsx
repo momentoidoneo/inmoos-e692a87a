@@ -5,12 +5,9 @@
  * but exposes the same shape the rest of the app already consumes, so business
  * pages don't need to know whether data comes from Cloud or mock.
  *
- * The `users` list (team members) still comes from the mock seed until the
- * external backend exposes a /team endpoint.
  */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { Tenant, User } from "@/modules/types";
-import { seedUsers } from "@/services/mock/seed";
 import { useAuth } from "./AuthContext";
 
 interface AppContextValue {
@@ -46,7 +43,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       active: true,
     };
 
-    return { tenant, user, users: seedUsers };
+    return { tenant, user, users: [user] };
   }, [activeTenant, supaUser, profile, role]);
 
   if (!value) return null;

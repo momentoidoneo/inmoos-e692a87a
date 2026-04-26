@@ -53,11 +53,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard label="Leads nuevos 24h" value={kpis.leadsNew24h} hint={`${kpis.leadsNew7d} en 7 días`} Icon={Inbox} tone="info" delta={{ value: 12, positive: true }} />
-        <KpiCard label="Tiempo respuesta" value={`${kpis.avgResponseMin} min`} hint="Objetivo <30 min" Icon={Clock} tone="success" delta={{ value: 8, positive: true }} />
+        <KpiCard label="Leads nuevos 24h" value={kpis.leadsNew24h} hint={`${kpis.leadsNew7d} en 7 días`} Icon={Inbox} tone="info" />
+        <KpiCard label="Tiempo respuesta" value={kpis.avgResponseMin ? `${kpis.avgResponseMin} min` : "Sin datos"} hint="Objetivo <30 min" Icon={Clock} tone="success" />
         <KpiCard label="Leads cualificados" value={kpis.qualifiedLeads} Icon={CheckCircle2} tone="default" />
         <KpiCard label="Visitas agendadas" value={kpis.visitsScheduled} hint={`${kpis.visitsDone} realizadas`} Icon={Calendar} tone="warning" />
-        <KpiCard label="Operaciones cerradas" value={kpis.closedDeals} Icon={Trophy} tone="success" delta={{ value: 5, positive: true }} />
+        <KpiCard label="Operaciones cerradas" value={kpis.closedDeals} Icon={Trophy} tone="success" />
         <KpiCard label="Ratio lead → visita" value={`${Math.round(kpis.ratioLeadVisit * 100)}%`} Icon={TrendingUp} tone="default" />
         <KpiCard label="Ratio visita → cierre" value={`${Math.round(kpis.ratioVisitClose * 100)}%`} Icon={TrendingUp} tone="success" />
         <KpiCard label="Leads dormidos" value={kpis.dormantLeads} hint=">15 días sin actividad" Icon={Moon} tone="warning" />
@@ -91,7 +91,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {byChannel.map((c) => {
-              const max = Math.max(...byChannel.map((x) => x.value));
+              const max = Math.max(...byChannel.map((x) => x.value), 1);
               return (
                 <div key={c.channel}>
                   <div className="flex items-center justify-between text-sm mb-1">
@@ -145,6 +145,9 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+            {agentAct.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sin actividad todavía.</p>
+            )}
           </CardContent>
         </Card>
       </div>

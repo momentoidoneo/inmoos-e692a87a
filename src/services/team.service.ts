@@ -1,5 +1,6 @@
 import type { User, ID } from "@/modules/types";
 import { seedUsers } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface TeamService {
   list(): Promise<User[]>;
@@ -11,12 +12,12 @@ export interface TeamService {
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
 export class MockTeamService implements TeamService {
-  private users: User[] = [...seedUsers];
+  private users: User[] = demoSeed(seedUsers);
   async list() { await delay(); return this.users; }
   async get(id: ID) { await delay(60); return this.users.find((u) => u.id === id) ?? null; }
   async invite(email: string, role: User["role"]) {
     await delay();
-    const u: User = { id: `u-${Date.now()}`, tenantId: "tenant-1", name: email.split("@")[0], email, role, active: false };
+    const u: User = { id: `u-${Date.now()}`, tenantId: "", name: email.split("@")[0], email, role, active: false };
     this.users.push(u);
     return u;
   }

@@ -1,5 +1,6 @@
 import type { Task, ID } from "@/modules/types";
 import { seedTasks } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface TasksService {
   list(filters?: Partial<{ assignedTo: ID; leadId: ID; status: string }>): Promise<Task[]>;
@@ -10,7 +11,7 @@ export interface TasksService {
 const delay = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 export class MockTasksService implements TasksService {
-  private tasks: Task[] = [...seedTasks];
+  private tasks: Task[] = demoSeed(seedTasks);
   async list(filters?: { assignedTo?: ID; leadId?: ID; status?: string }) {
     await delay();
     let r = this.tasks;

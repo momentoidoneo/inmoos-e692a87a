@@ -16,7 +16,7 @@ import { TeamService, MockTeamService } from "./team.service";
 import { TemplatesService, MockTemplatesService } from "./templates.service";
 import { IntegrationsService, MockIntegrationsService } from "./integrations.service";
 import { ActivityService, MockActivityService } from "./activity.service";
-import { DashboardService, MockDashboardService } from "./dashboard.service";
+import { DashboardService, SupabaseDashboardService } from "./dashboard.service";
 
 import { SupabaseLeadsService } from "./supabase/leads.supabase";
 import { SupabasePropertiesService } from "./supabase/properties.supabase";
@@ -36,7 +36,7 @@ export const services = {
   templates: new MockTemplatesService() as TemplatesService,
   integrations: new MockIntegrationsService() as IntegrationsService,
   activity: new MockActivityService() as ActivityService,
-  dashboard: new MockDashboardService() as DashboardService,
+  dashboard: new SupabaseDashboardService() as DashboardService,
 };
 
 export const isUsingRealApi = true;

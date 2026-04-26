@@ -1,5 +1,6 @@
 import type { Visit, ID } from "@/modules/types";
 import { seedVisits } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface VisitsService {
   list(filters?: Partial<{ agentId: ID; leadId: ID; propertyId: ID; from: string; to: string }>): Promise<Visit[]>;
@@ -11,7 +12,7 @@ export interface VisitsService {
 const delay = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 export class MockVisitsService implements VisitsService {
-  private visits: Visit[] = [...seedVisits];
+  private visits: Visit[] = demoSeed(seedVisits);
   async list(filters?: { agentId?: ID; leadId?: ID; propertyId?: ID; from?: string; to?: string }) {
     await delay();
     let r = this.visits;

@@ -10,6 +10,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { loadDemoData } from "@/services/seedLoader.service";
+import { demoContentEnabled } from "@/services/demoContent";
 import { Database, Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -21,6 +22,7 @@ export default function SettingsPage() {
   const [color, setColor] = useState(tenant.primaryColor ?? "");
   const [saving, setSaving] = useState(false);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  const showDemoTools = demoContentEnabled();
 
   const isAdmin = can("settings.manage");
 
@@ -56,7 +58,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="empresa">
         <TabsList className="overflow-x-auto">
           <TabsTrigger value="empresa">Empresa</TabsTrigger>
-          <TabsTrigger value="datos">Datos</TabsTrigger>
+          {showDemoTools && <TabsTrigger value="datos">Datos</TabsTrigger>}
           <TabsTrigger value="horarios">Horarios</TabsTrigger>
           <TabsTrigger value="canales">Canales</TabsTrigger>
           <TabsTrigger value="plantillas">Plantillas</TabsTrigger>
@@ -83,21 +85,23 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="datos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Datos demo</CardTitle>
-              <CardDescription>Carga un set coherente de datos de muestra para presentaciones o pruebas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={loadDemo} disabled={loadingDemo || !isAdmin}>
-                {loadingDemo ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-                Cargar datos demo
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">Inserta ~25 inmuebles, 60 leads, 40 tareas y 30 visitas en este tenant.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {showDemoTools && (
+          <TabsContent value="datos">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Datos demo</CardTitle>
+                <CardDescription>Carga un set coherente de datos de muestra para presentaciones o pruebas.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={loadDemo} disabled={loadingDemo || !isAdmin}>
+                  {loadingDemo ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+                  Cargar datos demo
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">Inserta ~25 inmuebles, 60 leads, 40 tareas y 30 visitas en este tenant.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {["horarios", "canales", "plantillas", "estados"].map((t) => (
           <TabsContent key={t} value={t}>

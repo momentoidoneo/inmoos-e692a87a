@@ -1,5 +1,6 @@
 import type { DocumentFile, ID } from "@/modules/types";
 import { seedDocuments } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface DocumentsService {
   list(filters?: Partial<{ leadId: ID; propertyId: ID; category: string }>): Promise<DocumentFile[]>;
@@ -12,7 +13,7 @@ export interface DocumentsService {
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 
 export class MockDocumentsService implements DocumentsService {
-  private docs: DocumentFile[] = [...seedDocuments];
+  private docs: DocumentFile[] = demoSeed(seedDocuments);
   async list(filters?: { leadId?: ID; propertyId?: ID; category?: string }) {
     await delay();
     let r = this.docs;
@@ -25,7 +26,7 @@ export class MockDocumentsService implements DocumentsService {
   async upload(file: File, meta: { category: DocumentFile["category"]; leadId?: ID; propertyId?: ID; uploadedBy: ID }) {
     await delay(400);
     const doc: DocumentFile = {
-      id: `doc-${Date.now()}`, tenantId: "tenant-1", name: file.name, category: meta.category,
+      id: `doc-${Date.now()}`, tenantId: "", name: file.name, category: meta.category,
       status: "procesando", sizeBytes: file.size, mimeType: file.type,
       leadId: meta.leadId, propertyId: meta.propertyId, uploadedBy: meta.uploadedBy,
       uploadedAt: new Date().toISOString(),

@@ -1,5 +1,6 @@
 import type { Lead, LeadStatus, ID } from "@/modules/types";
 import { seedLeads } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface LeadsService {
   list(filters?: Partial<{ status: LeadStatus; assignedTo: ID; search: string }>): Promise<Lead[]>;
@@ -11,7 +12,7 @@ export interface LeadsService {
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 
 export class MockLeadsService implements LeadsService {
-  private leads: Lead[] = [...seedLeads];
+  private leads: Lead[] = demoSeed(seedLeads);
 
   async list(filters?: { status?: LeadStatus; assignedTo?: ID; search?: string }) {
     await delay(120);

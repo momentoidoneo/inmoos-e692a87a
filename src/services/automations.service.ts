@@ -1,5 +1,6 @@
 import type { AutomationRule, AutomationRun, ID } from "@/modules/types";
 import { seedAutomations } from "./mock/seed";
+import { demoContentEnabled, demoSeed } from "./demoContent";
 
 export interface AutomationsService {
   list(): Promise<AutomationRule[]>;
@@ -11,7 +12,7 @@ export interface AutomationsService {
 const delay = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 export class MockAutomationsService implements AutomationsService {
-  private rules: AutomationRule[] = [...seedAutomations];
+  private rules: AutomationRule[] = demoSeed(seedAutomations);
   async list() { await delay(); return this.rules; }
   async toggle(id: ID, enabled: boolean) {
     await delay();
@@ -25,7 +26,7 @@ export class MockAutomationsService implements AutomationsService {
       return this.rules.find((r) => r.id === rule.id)!;
     }
     const newRule: AutomationRule = {
-      id: `auto-${Date.now()}`, tenantId: "tenant-1", name: rule.name, trigger: rule.trigger,
+      id: `auto-${Date.now()}`, tenantId: "", name: rule.name, trigger: rule.trigger,
       conditions: rule.conditions ?? [], steps: rule.steps ?? [], enabled: rule.enabled ?? true,
       runsCount: 0, createdAt: new Date().toISOString(), description: rule.description,
     };
@@ -35,6 +36,7 @@ export class MockAutomationsService implements AutomationsService {
   // MOCK — replace with logs from backend orchestrator
   async recentRuns(ruleId?: ID): Promise<AutomationRun[]> {
     await delay();
+    if (!demoContentEnabled()) return [];
     const rules = ruleId ? this.rules.filter((r) => r.id === ruleId) : this.rules;
     return rules.flatMap((r) => Array.from({ length: 3 }).map((_, i) => ({
       id: `run-${r.id}-${i}`,

@@ -1,5 +1,6 @@
 import type { KnowledgeArticle, ID } from "@/modules/types";
 import { seedKnowledge } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface KnowledgeService {
   list(filters?: Partial<{ category: string; search: string }>): Promise<KnowledgeArticle[]>;
@@ -13,7 +14,7 @@ export interface KnowledgeService {
 const delay = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 export class MockKnowledgeService implements KnowledgeService {
-  private items: KnowledgeArticle[] = [...seedKnowledge];
+  private items: KnowledgeArticle[] = demoSeed(seedKnowledge);
   async list(filters?: { category?: string; search?: string }) {
     await delay();
     let r = this.items;
@@ -33,7 +34,7 @@ export class MockKnowledgeService implements KnowledgeService {
       return this.items.find((k) => k.id === article.id)!;
     }
     const newItem: KnowledgeArticle = {
-      id: `kn-${Date.now()}`, tenantId: "tenant-1", title: article.title, contentMd: article.contentMd,
+      id: `kn-${Date.now()}`, tenantId: "", title: article.title, contentMd: article.contentMd,
       category: article.category, tags: article.tags ?? [], version: 1, authorId: article.authorId ?? "u-1",
       createdAt: now, updatedAt: now,
     };

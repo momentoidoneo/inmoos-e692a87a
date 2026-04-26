@@ -8,8 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Zap, Clock, Send, ListChecks, Users, ArrowRight, Moon, FileWarning } from "lucide-react";
 import { automationTriggerLabel } from "@/lib/labels";
 import { fmtRelative } from "@/lib/format";
-import { useEffect as useEffectAlias } from "react";
-import { seedLeads } from "@/services/mock/seed";
+import type { Lead } from "@/modules/types";
 
 const stepIcons: Record<string, typeof Clock> = {
   wait: Clock, send_template: Send, create_task: ListChecks, change_status: ArrowRight, notify_agent: Users, assign_agent: Users,
@@ -17,7 +16,9 @@ const stepIcons: Record<string, typeof Clock> = {
 
 export default function Automations() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
+  const [queueLeads, setQueueLeads] = useState<Lead[]>([]);
   useEffect(() => { services.automations.list().then(setRules); }, []);
+  useEffect(() => { services.leads.list().then(setQueueLeads); }, []);
 
   const toggle = async (id: string, enabled: boolean) => {
     const updated = await services.automations.toggle(id, enabled);
@@ -25,9 +26,9 @@ export default function Automations() {
   };
 
   // Smart queues
-  const noResp = seedLeads.filter((l) => l.status === "contactado").slice(0, 5);
-  const dormant = seedLeads.filter((l) => Date.now() - new Date(l.lastActivityAt).getTime() > 15 * 86400000).slice(0, 5);
-  const postVisit = seedLeads.filter((l) => l.status === "visita_realizada").slice(0, 5);
+  const noResp = queueLeads.filter((l) => l.status === "contactado").slice(0, 5);
+  const dormant = queueLeads.filter((l) => Date.now() - new Date(l.lastActivityAt).getTime() > 15 * 86400000).slice(0, 5);
+  const postVisit = queueLeads.filter((l) => l.status === "visita_realizada").slice(0, 5);
 
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
@@ -95,7 +96,7 @@ export default function Automations() {
   );
 }
 
-function Queue({ icon, title, leads }: { icon: React.ReactNode; title: string; leads: typeof seedLeads }) {
+function Queue({ icon, title, leads }: { icon: React.ReactNode; title: string; leads: Lead[] }) {
   return (
     <Card>
       <CardHeader>
@@ -109,6 +110,9 @@ function Queue({ icon, title, leads }: { icon: React.ReactNode; title: string; l
             <p className="text-xs text-muted-foreground">{fmtRelative(l.lastActivityAt)}</p>
           </div>
         ))}
+        {leads.length === 0 && (
+          <p className="py-2 text-sm text-muted-foreground">Sin leads en esta cola.</p>
+        )}
       </CardContent>
     </Card>
   );

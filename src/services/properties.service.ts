@@ -1,5 +1,6 @@
 import type { Property, ID } from "@/modules/types";
 import { seedProperties } from "./mock/seed";
+import { demoSeed } from "./demoContent";
 
 export interface PropertiesService {
   list(filters?: Partial<{ status: string; operation: string; zone: string; search: string }>): Promise<Property[]>;
@@ -10,7 +11,7 @@ export interface PropertiesService {
 const delay = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 export class MockPropertiesService implements PropertiesService {
-  private properties: Property[] = [...seedProperties];
+  private properties: Property[] = demoSeed(seedProperties);
   async list(filters?: Partial<{ status: string; operation: string; zone: string; search: string }>) {
     await delay();
     let result = this.properties;

@@ -12,8 +12,6 @@ import { Building2, Loader2 } from "lucide-react";
 import { useAuth } from "@/app/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Checkbox } from "@/components/ui/checkbox";
-import { loadDemoData } from "@/services/seedLoader.service";
 
 function slugify(s: string) {
   return s
@@ -29,7 +27,6 @@ export default function Onboarding() {
   const { user, refreshTenants, signOut } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [withDemo, setWithDemo] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -88,11 +85,6 @@ export default function Onboarding() {
       return;
     }
 
-    if (withDemo) {
-      try { await loadDemoData(tenant.id, user.id); }
-      catch (e) { console.warn("demo data load failed", e); }
-    }
-
     await refreshTenants();
     setBusy(false);
     toast({ title: "Inmobiliaria creada", description: `Bienvenido a ${tenant.name}.` });
@@ -137,17 +129,13 @@ export default function Onboarding() {
               <Label htmlFor="tenant-name">Nombre de la inmobiliaria</Label>
               <Input
                 id="tenant-name"
-                placeholder="Vértice Inmobiliaria"
+                placeholder="Nombre de tu inmobiliaria"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 minLength={2}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={withDemo} onCheckedChange={(c) => setWithDemo(!!c)} />
-              Cargar datos demo (inmuebles, leads, visitas)
-            </label>
             <Button type="submit" className="w-full" disabled={busy || !name.trim()}>
               {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Crear espacio
