@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Brain, CheckSquare, Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X } from "lucide-react";
+import { AlertTriangle, Brain, CheckSquare, Loader2, Search, Save, ExternalLink, Building2, UserPlus, Trash2, Play, X, Eye, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   opportunitiesService,
@@ -82,6 +82,57 @@ function formatPricePerM2(value: number | null | undefined): string | null {
   return `${Math.round(value).toLocaleString("es-ES")}€/m²`;
 }
 
+function formatPercent(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const percent = Math.abs(value) <= 1 ? value * 100 : value;
+  return `${Math.round(percent)}%`;
+}
+
+function formatDateTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("es-ES");
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function DetailMetric({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <p className="text-[11px] uppercase text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
+      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function DetailBlock({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-md border bg-muted/30 p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <div className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{children}</div>
+    </section>
+  );
+}
+
+function DetailList({ title, items, tone = "default" }: { title: string; items?: string[]; tone?: "default" | "warning" }) {
+  if (!items?.length) return null;
+  return (
+    <section className="rounded-md border bg-muted/30 p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <ul className={`mt-2 list-disc space-y-1 pl-4 text-sm ${tone === "warning" ? "text-amber-700" : "text-muted-foreground"}`}>
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`} className="break-words">{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 const FormSchema = z.object({
   operation: z.enum(["compra", "alquiler", "alquiler_temporal"]),
   city: z.string().min(2, "Indica una ciudad"),
@@ -110,6 +161,7 @@ export default function Opportunities() {
   const [pastJobs, setPastJobs] = useState<ScraperJob[]>([]);
   const [saved, setSaved] = useState<SavedSearch[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState<ScraperResult | null>(null);
   const [convertOpen, setConvertOpen] = useState<ScraperResult | null>(null);
   const [leadName, setLeadName] = useState("");
   const [leadContact, setLeadContact] = useState("");
@@ -291,6 +343,15 @@ export default function Opportunities() {
       await opportunitiesService.convertToProperty(r);
       toast.success("Inmueble creado");
     } catch (e) { toast.error("Error", { description: (e as Error).message }); }
+  };
+
+  const copySuggestedMessage = async (message: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      toast.success("Mensaje copiado");
+    } catch {
+      toast.error("No se pudo copiar el mensaje");
+    }
   };
 
   const saveSelectedAsProperties = async () => {
@@ -566,6 +627,8 @@ export default function Opportunities() {
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {sorted.map((r) => {
                     const ai = opportunityAi(r);
+                    const aiRisks = stringList(ai?.risks);
+                    const aiSignals = stringList(ai?.signals);
                     const selected = selectedIds.includes(r.id);
                     return (
                       <Card key={r.id} className={`overflow-hidden ${selected ? "ring-2 ring-primary" : ""}`}>
@@ -610,27 +673,27 @@ export default function Opportunities() {
                                 </Badge>
                                 <span className="text-[11px] text-muted-foreground">
                                   {privateStatusLabel(ai.private_owner_status)}
-                                  {typeof ai.private_owner_confidence === "number" ? ` · ${Math.round(ai.private_owner_confidence * 100)}%` : ""}
+                                  {formatPercent(ai.private_owner_confidence) ? ` · ${formatPercent(ai.private_owner_confidence)}` : ""}
                                 </span>
                               </div>
                               {ai.summary && <p className="text-xs font-medium line-clamp-2">{ai.summary}</p>}
                               {ai.reason && <p className="text-[11px] text-muted-foreground line-clamp-2">{ai.reason}</p>}
-                              {ai.risks?.length ? (
+                              {aiRisks.length ? (
                                 <p className="text-[11px] text-amber-700 flex gap-1">
                                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                                  <span className="line-clamp-2">{ai.risks.slice(0, 2).join(" · ")}</span>
+                                  <span className="line-clamp-2">{aiRisks.slice(0, 2).join(" · ")}</span>
                                 </p>
                               ) : null}
                               {ai.next_action && <p className="text-[11px] text-muted-foreground line-clamp-2">Acción: {ai.next_action}</p>}
                               {ai.suggested_message && <p className="text-[11px] text-muted-foreground line-clamp-2">Mensaje: {ai.suggested_message}</p>}
-                              {(ai.signals?.length || formatPricePerM2(ai.price_per_m2)) && (
+                              {(aiSignals.length || formatPricePerM2(ai.price_per_m2)) && (
                                 <div className="flex flex-wrap gap-1 pt-0.5">
                                   {formatPricePerM2(ai.price_per_m2) && (
                                     <Badge variant="outline" className="text-[10px] font-normal">
                                       IA {formatPricePerM2(ai.price_per_m2)}
                                     </Badge>
                                   )}
-                                  {ai.signals?.slice(0, 3).map((signal) => (
+                                  {aiSignals.slice(0, 3).map((signal) => (
                                     <Badge key={signal} variant="secondary" className="text-[10px] font-normal">
                                       {signal}
                                     </Badge>
@@ -646,6 +709,10 @@ export default function Opportunities() {
                               )}
                             </div>
                           )}
+                          <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailOpen(r)}>
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            Abrir oportunidad
+                          </Button>
                           <div className="flex items-center justify-between gap-1">
                             <div className="flex flex-wrap gap-1">
                               {r.listing_type && (
@@ -734,6 +801,140 @@ export default function Opportunities() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Opportunity detail */}
+      <Dialog open={!!detailOpen} onOpenChange={(o) => !o && setDetailOpen(null)}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden">
+          {detailOpen && (() => {
+            const ai = opportunityAi(detailOpen);
+            const confidence = formatPercent(ai?.private_owner_confidence);
+            const pricePerM2 = formatPricePerM2(ai?.price_per_m2)
+              ?? (detailOpen.price && detailOpen.surface_m2 ? `${Math.round(detailOpen.price / detailOpen.surface_m2).toLocaleString("es-ES")}€/m²` : null);
+            const aiRisks = stringList(ai?.risks);
+            const aiSignals = stringList(ai?.signals);
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="pr-6 leading-snug">{detailOpen.title ?? "Oportunidad sin título"}</DialogTitle>
+                  <DialogDescription>
+                    Detalle completo de la oportunidad y del análisis generado por Score AI.
+                  </DialogDescription>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <Badge variant="outline" className="capitalize">{detailOpen.portal}</Badge>
+                    {detailOpen.listing_type && <Badge variant="secondary">{detailOpen.listing_type}</Badge>}
+                    {ai?.priority && <Badge variant="outline" className={priorityClass(ai.priority)}>Prioridad {ai.priority}</Badge>}
+                    {ai?.source && <Badge variant="outline">{ai.source}</Badge>}
+                    {ai?.model && <Badge variant="outline">{ai.model}</Badge>}
+                  </div>
+                </DialogHeader>
+
+                <ScrollArea className="max-h-[64vh] pr-4">
+                  <div className="space-y-4 pb-2">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <DetailMetric label="Score AI" value={ai?.score != null ? Math.round(ai.score) : "Sin score"} hint={ai?.priority ? `Prioridad ${ai.priority}` : undefined} />
+                      <DetailMetric label="Anunciante" value={privateStatusLabel(ai?.private_owner_status)} hint={confidence ? `Confianza ${confidence}` : undefined} />
+                      <DetailMetric label="Precio" value={detailOpen.price ? `${detailOpen.price.toLocaleString("es-ES")}€` : "Sin precio"} hint={pricePerM2 ?? undefined} />
+                      <DetailMetric
+                        label="Superficie"
+                        value={detailOpen.surface_m2 ? `${detailOpen.surface_m2} m²` : "Sin superficie"}
+                        hint={[
+                          detailOpen.rooms != null ? `${detailOpen.rooms} habs` : null,
+                          detailOpen.bathrooms != null ? `${detailOpen.bathrooms} baños` : null,
+                        ].filter(Boolean).join(" · ") || undefined}
+                      />
+                    </div>
+
+                    {ai ? (
+                      <div className="space-y-3">
+                        {ai.summary && <DetailBlock title="Resumen Score AI">{ai.summary}</DetailBlock>}
+                        {ai.reason && <DetailBlock title="Motivo del score">{ai.reason}</DetailBlock>}
+                        <DetailList title="Señales detectadas" items={aiSignals} />
+                        <DetailList title="Riesgos" items={aiRisks} tone="warning" />
+                        {ai.next_action && <DetailBlock title="Siguiente acción recomendada">{ai.next_action}</DetailBlock>}
+                        {ai.suggested_message && (
+                          <section className="rounded-md border bg-muted/30 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium">Mensaje sugerido</p>
+                              <Button size="sm" variant="outline" onClick={() => copySuggestedMessage(ai.suggested_message!)}>
+                                <Copy className="h-3.5 w-3.5 mr-1" />
+                                Copiar
+                              </Button>
+                            </div>
+                            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{ai.suggested_message}</p>
+                          </section>
+                        )}
+                        {(ai.duplicate_key || ai.source || ai.model || pricePerM2) && (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {ai.duplicate_key && <DetailMetric label="Clave duplicado" value={<span className="break-all">{ai.duplicate_key}</span>} />}
+                            {pricePerM2 && <DetailMetric label="Precio por m²" value={pricePerM2} />}
+                            {ai.source && <DetailMetric label="Fuente Score AI" value={ai.source} />}
+                            {ai.model && <DetailMetric label="Modelo Score AI" value={ai.model} />}
+                          </div>
+                        )}
+                        <details className="rounded-md border bg-muted/30 p-3">
+                          <summary className="cursor-pointer text-sm font-medium">JSON completo de Score AI</summary>
+                          <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background p-3 text-[11px] text-muted-foreground">
+                            {JSON.stringify(ai, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+                        Esta oportunidad no tiene análisis Score AI asociado.
+                      </div>
+                    )}
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Datos del anuncio</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <DetailMetric
+                          label="Ubicación"
+                          value={detailOpen.address || detailOpen.zone || detailOpen.city || "Sin ubicación"}
+                          hint={[detailOpen.zone, detailOpen.city].filter(Boolean).join(" · ") || undefined}
+                        />
+                        <DetailMetric
+                          label="Publicado"
+                          value={formatDateTime(detailOpen.published_at) ?? "Sin fecha"}
+                          hint={`Capturado ${formatDateTime(detailOpen.created_at) ?? "sin fecha"}`}
+                        />
+                        <DetailMetric label="Tipo" value={detailOpen.property_type ?? "Sin tipo"} hint={detailOpen.operation ?? undefined} />
+                        <DetailMetric label="ID externo" value={<span className="break-all">{detailOpen.external_id}</span>} />
+                      </div>
+                      {detailOpen.description && <DetailBlock title="Descripción del anuncio">{detailOpen.description}</DetailBlock>}
+                    </div>
+                  </div>
+                </ScrollArea>
+
+                <DialogFooter className="gap-2 sm:justify-between sm:space-x-0">
+                  <div className="flex flex-wrap gap-2">
+                    {detailOpen.url && (
+                      <Button variant="outline" asChild>
+                        <a href={detailOpen.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Abrir anuncio
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => convertToProperty(detailOpen)}>
+                      <Building2 className="h-4 w-4 mr-1" />
+                      Guardar inmueble
+                    </Button>
+                    <Button onClick={() => { setConvertOpen(detailOpen); setDetailOpen(null); }}>
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      Crear lead
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Terms modal */}
       <Dialog open={showTerms} onOpenChange={setShowTerms}>
