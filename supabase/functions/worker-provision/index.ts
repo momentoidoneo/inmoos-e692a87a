@@ -94,12 +94,24 @@ Deno.serve(async (req) => {
       // Push env vars to Coolify (proxy creds + worker token + supabase url).
       const envs = [
         { key: "WORKER_TOKEN", value: cfg.worker_token ?? "" },
+        { key: "WORKER_VERSION", value: "1.1.0" },
         { key: "SUPABASE_URL", value: Deno.env.get("SUPABASE_URL") ?? "" },
         { key: "PROXY_PROVIDER", value: cfg.proxy_provider ?? "" },
         { key: "PROXY_HOST", value: cfg.proxy_host ?? "" },
         { key: "PROXY_USER", value: cfg.proxy_user ?? "" },
         { key: "PROXY_PASS", value: cfg.proxy_pass ?? "" },
         { key: "PROXY_COUNTRY", value: cfg.proxy_country ?? "es" },
+        { key: "APIFY_IDEALISTA_DESIRED_RESULTS", value: "180" },
+        { key: "APIFY_IDEALISTA_MAX_RESULTS_PER_SEARCH", value: "100" },
+        { key: "APIFY_IDEALISTA_SEGMENTED_SEARCH", value: "true" },
+        { key: "APIFY_IDEALISTA_CONCURRENCY", value: "3" },
+        { key: "IDEALISTA_DETAIL_ENRICHMENT_ENABLED", value: "true" },
+        { key: "PRIVATE_DETAIL_ENRICHMENT_ENABLED", value: "true" },
+        { key: "PRIVATE_DETAIL_ENRICHMENT_MAX_RESULTS", value: "80" },
+        { key: "PARTICULAR_CANDIDATES_ENABLED", value: "true" },
+        { key: "PARTICULAR_CANDIDATE_MIN_CONFIDENCE", value: "0.5" },
+        { key: "OPPORTUNITY_AI_ENABLED", value: "true" },
+        { key: "OPPORTUNITY_AI_MAX_OLLAMA_RESULTS", value: "18" },
       ];
       const results: any[] = [];
       for (const env of envs) {
