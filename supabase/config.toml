@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.worker-heartbeat]
 verify_jwt = false
+
+[functions.automations-runner]
+verify_jwt = false

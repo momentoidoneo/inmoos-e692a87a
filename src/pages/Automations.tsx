@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Zap, Clock, Send, ListChecks, Users, ArrowRight, Moon, FileWarning, Loader2, AlertCircle } from "lucide-react";
+import { Plus, Zap, Clock, Send, ListChecks, Users, ArrowRight, Moon, FileWarning, Loader2, AlertCircle, Play } from "lucide-react";
 import { automationTriggerLabel } from "@/lib/labels";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import type { Lead } from "@/modules/types";
@@ -22,7 +22,7 @@ const stepIcons: Record<string, typeof Clock> = {
 
 const stepLabels: Record<AutomationStepKind, string> = {
   wait: "Esperar",
-  send_template: "Enviar plantilla",
+  send_template: "Registrar mensaje",
   create_task: "Crear tarea",
   change_status: "Cambiar estado",
   notify_agent: "Notificar agente",
@@ -38,13 +38,14 @@ const triggerOptions: AutomationTrigger[] = [
   "document_pending",
 ];
 
-type RuleAction = "create_task" | "notify_agent" | "send_template" | "follow_up";
+type RuleAction = "create_task" | "notify_agent" | "send_template" | "change_status" | "follow_up";
 
 const actionLabels: Record<RuleAction, string> = {
   create_task: "Crear tarea",
   notify_agent: "Notificar agente",
-  send_template: "Enviar plantilla",
-  follow_up: "Plantilla + tarea",
+  send_template: "Registrar mensaje",
+  change_status: "Cambiar estado",
+  follow_up: "Mensaje + tarea",
 };
 
 const defaultForm = {
@@ -60,6 +61,9 @@ function stepsForAction(action: RuleAction): AutomationRule["steps"] {
   }
   if (action === "send_template") {
     return [{ id: `step-${Date.now()}-template`, kind: "send_template", config: { channel: "whatsapp" } }];
+  }
+  if (action === "change_status") {
+    return [{ id: `step-${Date.now()}-status`, kind: "change_status", config: { to: "seguimiento" } }];
   }
   if (action === "follow_up") {
     return [
@@ -83,6 +87,7 @@ export default function Automations() {
   const [queueLeads, setQueueLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runningDue, setRunningDue] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
 
@@ -145,9 +150,35 @@ export default function Automations() {
     }
   };
 
+  const runDueAutomations = async () => {
+    setRunningDue(true);
+    try {
+      const result = await services.automations.runDue();
+      const [loadedRules, loadedRuns, loadedLeads] = await Promise.all([
+        services.automations.list(),
+        services.automations.recentRuns(),
+        services.leads.list(),
+      ]);
+      setRules(loadedRules);
+      setRuns(loadedRuns);
+      setQueueLeads(loadedLeads);
+      toast.success("Automatizaciones procesadas", {
+        description: `${result.processed} ejecución${result.processed === 1 ? "" : "es"} nueva${result.processed === 1 ? "" : "s"}.`,
+      });
+    } catch (e) {
+      toast.error("No se pudieron ejecutar las automatizaciones", { description: (e as Error).message });
+    } finally {
+      setRunningDue(false);
+    }
+  };
+
   // Smart queues
-  const noResp = queueLeads.filter((l) => l.status === "contactado").slice(0, 5);
-  const dormant = queueLeads.filter((l) => Date.now() - new Date(l.lastActivityAt).getTime() > 15 * 86400000).slice(0, 5);
+  const now = Date.now();
+  const noResp = queueLeads.filter((l) => {
+    const age = now - new Date(l.lastActivityAt).getTime();
+    return l.status === "contactado" && age >= 24 * 3600000 && age < 72 * 3600000;
+  }).slice(0, 5);
+  const dormant = queueLeads.filter((l) => now - new Date(l.lastActivityAt).getTime() > 15 * 86400000).slice(0, 5);
   const postVisit = queueLeads.filter((l) => l.status === "visita_realizada").slice(0, 5);
 
   return (
@@ -157,14 +188,20 @@ export default function Automations() {
           <h1 className="text-2xl font-semibold tracking-tight">Automatizaciones</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Colas inteligentes y reglas de seguimiento</p>
         </div>
-        <Button size="sm" onClick={openNewRule}><Plus className="h-4 w-4 mr-1" /> Nueva regla</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={runDueAutomations} disabled={runningDue || loading}>
+            {runningDue ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+            Ejecutar pendientes
+          </Button>
+          <Button size="sm" onClick={openNewRule}><Plus className="h-4 w-4 mr-1" /> Nueva regla</Button>
+        </div>
       </div>
 
       <Tabs defaultValue="reglas">
         <TabsList>
           <TabsTrigger value="reglas">Reglas ({rules.length})</TabsTrigger>
           <TabsTrigger value="colas">Colas inteligentes</TabsTrigger>
-          <TabsTrigger value="logs">Ejecuciones</TabsTrigger>
+          <TabsTrigger value="logs">Ejecuciones ({runs.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="reglas" className="space-y-3">
