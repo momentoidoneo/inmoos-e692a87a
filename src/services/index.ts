@@ -1,14 +1,14 @@
 /**
  * Service layer entry point.
  *
- * Core CRM modules (leads, properties, visits, tasks, automations) are backed by Supabase.
+ * Core CRM modules (leads, properties, visits, tasks, documents, automations) are backed by Supabase.
  * Other domains stay mock until the FastAPI backend exposes them.
  */
 import { LeadsService } from "./leads.service";
 import { PropertiesService } from "./properties.service";
 import { VisitsService } from "./visits.service";
 import { TasksService } from "./tasks.service";
-import { DocumentsService, MockDocumentsService } from "./documents.service";
+import { DocumentsService, SupabaseDocumentsService } from "./documents.service";
 import { KnowledgeService, MockKnowledgeService } from "./knowledge.service";
 import { AutomationsService, SupabaseAutomationsService } from "./automations.service";
 import { AIService, MockAIService } from "./ai.service";
@@ -28,7 +28,7 @@ export const services = {
   properties: new SupabasePropertiesService() as PropertiesService,
   visits: new SupabaseVisitsService() as VisitsService,
   tasks: new SupabaseTasksService() as TasksService,
-  documents: new MockDocumentsService() as DocumentsService,
+  documents: new SupabaseDocumentsService() as DocumentsService,
   knowledge: new MockKnowledgeService() as KnowledgeService,
   automations: new SupabaseAutomationsService() as AutomationsService,
   ai: new MockAIService() as AIService,

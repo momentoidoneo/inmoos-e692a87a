@@ -302,6 +302,85 @@ export type Database = {
           },
         ]
       }
+      documents: {
+        Row: {
+          category: string
+          content_text: string | null
+          created_at: string
+          extracted_data: Json
+          id: string
+          lead_id: string | null
+          mime_type: string
+          name: string
+          property_id: string | null
+          size_bytes: number
+          status: string
+          storage_path: string
+          summary: string | null
+          tenant_id: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string
+          content_text?: string | null
+          created_at?: string
+          extracted_data?: Json
+          id?: string
+          lead_id?: string | null
+          mime_type?: string
+          name: string
+          property_id?: string | null
+          size_bytes?: number
+          status?: string
+          storage_path: string
+          summary?: string | null
+          tenant_id: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          category?: string
+          content_text?: string | null
+          created_at?: string
+          extracted_data?: Json
+          id?: string
+          lead_id?: string | null
+          mime_type?: string
+          name?: string
+          property_id?: string | null
+          size_bytes?: number
+          status?: string
+          storage_path?: string
+          summary?: string | null
+          tenant_id?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

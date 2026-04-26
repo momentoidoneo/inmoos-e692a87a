@@ -211,8 +211,10 @@ export interface DocumentFile {
   propertyId?: ID;
   uploadedBy: ID;
   uploadedAt: string;
+  storagePath?: string;
   summary?: string;
   extractedData?: Record<string, string>;
+  contentText?: string;
 }
 
 /* ───────── Knowledge ───────── */
