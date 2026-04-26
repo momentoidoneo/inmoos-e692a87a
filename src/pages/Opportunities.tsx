@@ -224,7 +224,27 @@ export default function Opportunities() {
     toast.success("Búsqueda guardada");
   };
 
+  const applySearchState = (params: ScraperParams, portals: Portal[]) => {
+    form.reset({
+      operation: params.operation ?? "compra",
+      city: params.city ?? "Madrid",
+      zones: params.zones?.join(", ") ?? "",
+      priceMin: params.priceMin,
+      priceMax: params.priceMax,
+      surfaceMin: params.surfaceMin,
+      surfaceMax: params.surfaceMax,
+      roomsMin: params.roomsMin,
+      bathroomsMin: params.bathroomsMin,
+      listingType: params.listingType ?? "ambos",
+      adAge: params.adAge ?? "any",
+    });
+    setPropertyTypes(params.propertyTypes?.length ? params.propertyTypes : ["piso"]);
+    setFeatures(params.features ?? []);
+    setSelectedPortals(portals.length ? portals : ["idealista", "fotocasa"]);
+  };
+
   const runSaved = async (s: SavedSearch) => {
+    applySearchState(s.params, s.portals);
     const { jobId } = await opportunitiesService.createJob(s.params, s.portals, tenant.id);
     const job = await opportunitiesService.getJob(jobId);
     setActiveJob(job);
@@ -292,6 +312,7 @@ export default function Opportunities() {
   const viewHistoricalJob = async (job: ScraperJob) => {
     setLoadingHistoryJobId(job.id);
     setSelectedIds([]);
+    applySearchState(job.params as ScraperParams, job.portals ?? []);
     setActiveJob(job);
     setResults([]);
     setActiveTab("search");
